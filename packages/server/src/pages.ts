@@ -1,4 +1,4 @@
-import type { Browser, BrowserContext, Page } from "playwright";
+import type { BrowserContext, Page } from "playwright";
 import type { PageInfo, RefMap } from "./types.js";
 
 interface PageEntry {
@@ -8,32 +8,10 @@ interface PageEntry {
 
 export class PageManager {
   private pages = new Map<string, PageEntry>();
-  private browser: Browser | null = null;
   private context: BrowserContext | null = null;
 
-  setBrowser(browser: Browser): void {
-    this.browser = browser;
-  }
-
-  private async getContext(): Promise<BrowserContext> {
-    if (this.context) return this.context;
-    if (!this.browser) throw new Error("Browser not connected");
-
-    // Reuse the default context (the window that launched with the browser)
-    // so everything stays in one OS window as tabs
-    const contexts = this.browser.contexts();
-    if (contexts.length > 0) {
-      this.context = contexts[0];
-    } else {
-      this.context = await this.browser.newContext();
-    }
-
-    // Hide automation signals so sites don't detect Playwright
-    await this.context.addInitScript(() => {
-      Object.defineProperty(navigator, "webdriver", { get: () => false });
-    });
-
-    return this.context;
+  setContext(context: BrowserContext): void {
+    this.context = context;
   }
 
   async createPage(name: string): Promise<PageInfo> {
@@ -46,14 +24,32 @@ export class PageManager {
       };
     }
 
-    const context = await this.getContext();
+    if (!this.context) {
+      throw new Error("Browser not connected");
+    }
 
-    // Reuse the blank tab if this is the first page
-    const existingPages = context.pages();
+    // Reuse the blank tab if this is the first page,
+    // otherwise use window.open() to open a tab in the same window
+    // (context.newPage() always opens a new OS window in Firefox)
+    const existingPages = this.context.pages();
     const blankPage = existingPages.find(
       (p) => p.url() === "about:blank" || p.url() === "",
     );
-    const page = blankPage ?? (await context.newPage());
+
+    let page: Page;
+    if (blankPage) {
+      page = blankPage;
+    } else if (existingPages.length > 0) {
+      const [newPage] = await Promise.all([
+        this.context.waitForEvent("page"),
+        existingPages[existingPages.length - 1].evaluate(() =>
+          window.open("about:blank"),
+        ),
+      ]);
+      page = newPage;
+    } else {
+      page = await this.context.newPage();
+    }
     this.pages.set(name, {
       page,
       refMap: { refs: new Map(), timestamp: 0 },

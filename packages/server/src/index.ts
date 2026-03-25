@@ -31,20 +31,24 @@ export async function startServer(
 
   console.log(`Launching Firefox (${headless ? "headless" : "headed"})...`);
 
-  const browserServer = await firefox.launchServer({
+  // Use launch() directly instead of launchServer()+connect()
+  // so we control the single browser instance and its contexts
+  const browser = await firefox.launch({
     headless,
     firefoxUserPrefs: {
-      // Disable webdriver flag so sites don't detect automation
       "dom.webdriver.enabled": false,
       "marionette.enabled": false,
     },
   });
-  const wsEndpoint = browserServer.wsEndpoint();
-  console.log(`Firefox WS endpoint: ${wsEndpoint}`);
 
-  const browser = await firefox.connect(wsEndpoint);
+  // Create a single context — one OS window, all pages become tabs
+  const context = await browser.newContext();
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => false });
+  });
+
   const pageManager = new PageManager();
-  pageManager.setBrowser(browser);
+  pageManager.setContext(context);
 
   const app = createApp(pageManager);
   const address = await app.listen({ port, host: "127.0.0.1" });
@@ -53,7 +57,7 @@ export async function startServer(
 
   await mkdir(FIRECODE_DIR, { recursive: true });
   const state: ServerState = {
-    wsEndpoint,
+    wsEndpoint: "",
     httpPort,
     pid: process.pid,
   };
@@ -65,7 +69,7 @@ export async function startServer(
     console.log("\nShutting down...");
     await pageManager.closeAll();
     await app.close();
-    browserServer.close();
+    await browser.close();
     try {
       await rm(SERVER_STATE_PATH);
     } catch {}
