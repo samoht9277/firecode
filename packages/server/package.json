@@ -16,10 +16,11 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "playwright": "^1.52",
-    "fastify": "^5"
+    "fastify": "^5",
+    "playwright": "^1.52"
   },
   "devDependencies": {
+    "@types/node": "^25.5.0",
     "tsup": "^8",
     "typescript": "^5.7"
   }
