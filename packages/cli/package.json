@@ -1,0 +1,21 @@
+{
+  "name": "@firecode/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "firecode": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@firecode/server": "workspace:*",
+    "commander": "^13"
+  },
+  "devDependencies": {
+    "tsup": "^8",
+    "typescript": "^5.7"
+  }
+}
