@@ -48,11 +48,12 @@ export class FirecodeClient {
   }
 
   async post(path: string, body?: any): Promise<any> {
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    const options: RequestInit = { method: "POST" };
+    if (body) {
+      options.headers = { "Content-Type": "application/json" };
+      options.body = JSON.stringify(body);
+    }
+    const res = await fetch(`${this.baseUrl}${path}`, options);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.message ?? `HTTP ${res.status}`);
