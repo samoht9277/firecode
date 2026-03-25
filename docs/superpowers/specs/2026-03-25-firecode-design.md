@@ -1,6 +1,10 @@
 # Firecode Design Spec
 
-Firefox browser automation for Claude Code / Cowork agents. Two modes (browse + test) sharing a single Firefox instance via Playwright.
+Firefox browser automation skill that gives Claude Code / Cowork agents autonomous access to a real browser. The core use case: when an agent is building or modifying a web app, it can launch a browser, navigate to the app, see the page via ARIA snapshots, interact with elements, and verify its own work — without the user acting as a proxy to describe what's on screen.
+
+Two modes sharing a single Firefox instance via Playwright:
+- **Browse mode (primary)**: the agent's eyes and hands in the browser
+- **Test mode (secondary, later)**: automated test generation from git diffs
 
 ## Architecture
 
@@ -193,13 +197,16 @@ firecode/
 
 ## Implementation Order
 
+Phase 1 — Browse mode (the core value):
 1. Monorepo scaffold (package.json, pnpm-workspace, turbo, tsconfig)
 2. `packages/server` — Firefox lifecycle, WS endpoint, page registry, Fastify API
 3. `packages/cli` — start/stop/status commands
 4. `packages/server/snapshot.ts` — AI-friendly DOM snapshots with refs
 5. `packages/cli` browse/snapshot/screenshot commands
-6. `skills/firecode/SKILL.md` — agent instructions
-7. End-to-end test: start firecode, browse a page, take a snapshot
+6. `skills/firecode/SKILL.md` — agent instructions (critical, this is how the agent knows when/how to use firecode)
+7. End-to-end test: start firecode, browse a page, take a snapshot, interact
+
+Phase 2 — Test mode (later):
 8. `packages/testgen` — diff, analyze, plan, generate, run
 9. `packages/cli` test command
 
