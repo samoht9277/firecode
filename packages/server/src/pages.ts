@@ -3,16 +3,37 @@ import type { PageInfo, RefMap } from "./types.js";
 
 interface PageEntry {
   page: Page;
-  context: BrowserContext;
   refMap: RefMap;
 }
 
 export class PageManager {
   private pages = new Map<string, PageEntry>();
   private browser: Browser | null = null;
+  private context: BrowserContext | null = null;
 
   setBrowser(browser: Browser): void {
     this.browser = browser;
+  }
+
+  private async getContext(): Promise<BrowserContext> {
+    if (this.context) return this.context;
+    if (!this.browser) throw new Error("Browser not connected");
+
+    // Reuse the default context (the window that launched with the browser)
+    // so everything stays in one OS window as tabs
+    const contexts = this.browser.contexts();
+    if (contexts.length > 0) {
+      this.context = contexts[0];
+    } else {
+      this.context = await this.browser.newContext();
+    }
+
+    // Hide automation signals so sites don't detect Playwright
+    await this.context.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => false });
+    });
+
+    return this.context;
   }
 
   async createPage(name: string): Promise<PageInfo> {
@@ -25,19 +46,16 @@ export class PageManager {
       };
     }
 
-    if (!this.browser) {
-      throw new Error("Browser not connected");
-    }
+    const context = await this.getContext();
 
-    const context = await this.browser.newContext();
-    // Hide automation signals so sites don't detect Playwright
-    await context.addInitScript(() => {
-      Object.defineProperty(navigator, "webdriver", { get: () => false });
-    });
-    const page = await context.newPage();
+    // Reuse the blank tab if this is the first page
+    const existingPages = context.pages();
+    const blankPage = existingPages.find(
+      (p) => p.url() === "about:blank" || p.url() === "",
+    );
+    const page = blankPage ?? (await context.newPage());
     this.pages.set(name, {
       page,
-      context,
       refMap: { refs: new Map(), timestamp: 0 },
     });
 
@@ -83,7 +101,7 @@ export class PageManager {
   async closePage(name: string): Promise<void> {
     const entry = this.pages.get(name);
     if (!entry) return;
-    await entry.context.close();
+    await entry.page.close();
     this.pages.delete(name);
   }
 
