@@ -30,6 +30,10 @@ export class PageManager {
     }
 
     const context = await this.browser.newContext();
+    // Hide automation signals so sites don't detect Playwright
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => false });
+    });
     const page = await context.newPage();
     this.pages.set(name, {
       page,

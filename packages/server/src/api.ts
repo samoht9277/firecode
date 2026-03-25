@@ -63,7 +63,7 @@ export function createApp(pageManager: PageManager) {
         }
         case "click": {
           const locator = resolveRef(page, refMap, args[0]);
-          await locator.click();
+          await locator.click({ force: true });
           return { ok: true, message: `Clicked ${args[0]}` };
         }
         case "fill": {

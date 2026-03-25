@@ -33,6 +33,11 @@ export async function startServer(
 
   const browserServer = await firefox.launchServer({
     headless,
+    firefoxUserPrefs: {
+      // Disable webdriver flag so sites don't detect automation
+      "dom.webdriver.enabled": false,
+      "marionette.enabled": false,
+    },
   });
   const wsEndpoint = browserServer.wsEndpoint();
   console.log(`Firefox WS endpoint: ${wsEndpoint}`);
