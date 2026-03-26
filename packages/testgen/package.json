@@ -1,0 +1,27 @@
+{
+  "name": "@firecode/testgen",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "simple-git": "^3",
+    "playwright": "^1.52"
+  },
+  "devDependencies": {
+    "tsup": "^8",
+    "typescript": "^5.7",
+    "@types/node": "^22"
+  }
+}

@@ -1,0 +1,10 @@
+export { parseDiff } from "./diff.js";
+export type { DiffFile, DiffResult } from "./diff.js";
+export { analyzeChanges } from "./analyze.js";
+export type { FileCategory, AnalyzedFile, AnalysisResult } from "./analyze.js";
+export { generatePlan } from "./plan.js";
+export type { TestPlanItem, TestPlan } from "./plan.js";
+export { generateTests } from "./generate.js";
+export type { GeneratedTest } from "./generate.js";
+export { runTests } from "./run.js";
+export type { TestResult } from "./run.js";
