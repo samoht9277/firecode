@@ -11,20 +11,36 @@ export async function getSnapshot(page: Page): Promise<{ snapshot: string; refMa
   const raw = await page.locator("body").ariaSnapshot({ timeout: 10000 });
 
   let refCounter = 0;
-  const refs = new Map<string, { role: string; name: string }>();
+  const refs = new Map<string, { role: string; name: string; nth?: number }>();
+  const unnamedCounts = new Map<string, number>();
 
   const lines = raw.split("\n");
   const tagged = lines.map((line) => {
-    const match = line.match(/^(\s*- )(\w+)\s+"([^"]*)"(.*)$/);
-    if (!match) return line;
+    // Match named elements: "- role "name" ..."
+    const namedMatch = line.match(/^(\s*- )(\w+)\s+"([^"]*)"(.*)$/);
+    if (namedMatch) {
+      const [, indent, role, name, rest] = namedMatch;
+      if (INTERACTIVE_ROLES.has(role) || name) {
+        refCounter++;
+        const refId = `e${refCounter}`;
+        refs.set(refId, { role, name });
+        return `${indent}${role} "${name}" [ref=${refId}]${rest}`;
+      }
+      return line;
+    }
 
-    const [, indent, role, name, rest] = match;
-
-    if (INTERACTIVE_ROLES.has(role) || name) {
-      refCounter++;
-      const refId = `e${refCounter}`;
-      refs.set(refId, { role, name });
-      return `${indent}${role} "${name}" [ref=${refId}]${rest}`;
+    // Match unnamed interactive elements: "- button:" or "- button"
+    const unnamedMatch = line.match(/^(\s*- )(\w+)(:|$)/);
+    if (unnamedMatch) {
+      const [, indent, role, suffix] = unnamedMatch;
+      if (INTERACTIVE_ROLES.has(role)) {
+        refCounter++;
+        const refId = `e${refCounter}`;
+        const nth = (unnamedCounts.get(role) ?? 0);
+        unnamedCounts.set(role, nth + 1);
+        refs.set(refId, { role, name: "", nth });
+        return `${indent}${role} [ref=${refId}]${suffix}`;
+      }
     }
 
     return line;
@@ -48,5 +64,8 @@ export function resolveRef(
     );
   }
 
-  return page.getByRole(entry.role as any, { name: entry.name });
+  if (entry.name) {
+    return page.getByRole(entry.role as any, { name: entry.name });
+  }
+  return page.getByRole(entry.role as any).nth(entry.nth ?? 0);
 }

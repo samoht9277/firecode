@@ -40,7 +40,7 @@ export interface ActionResult {
 }
 
 export interface RefMap {
-  refs: Map<string, { role: string; name: string }>;
+  refs: Map<string, { role: string; name: string; nth?: number }>;
   timestamp: number;
 }
 
