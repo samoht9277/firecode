@@ -1,7 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
-import { SERVER_STATE_PATH, startServer } from "@firecode/server";
-import type { ServerState } from "@firecode/server";
+
+const SERVER_STATE_PATH = `${process.env.HOME}/.firecode/server.json`;
+
+interface ServerState {
+  httpPort: number;
+  pid: number;
+}
 
 export class FirecodeClient {
   private baseUrl: string;
@@ -11,11 +16,10 @@ export class FirecodeClient {
   }
 
   static async connect(): Promise<FirecodeClient> {
-    let raw: string;
+    let raw!: string;
     try {
       raw = await readFile(SERVER_STATE_PATH, "utf-8");
     } catch {
-      // Auto-start: server not running, start it in headless mode
       console.error("Firecode server not running, starting in headless mode...");
       const child = execFile(
         process.argv[0],
@@ -23,7 +27,6 @@ export class FirecodeClient {
         { detached: true, stdio: "ignore" },
       );
       child.unref();
-      // Wait for server to come up
       for (let i = 0; i < 20; i++) {
         await new Promise((r) => setTimeout(r, 500));
         try {
@@ -31,7 +34,7 @@ export class FirecodeClient {
           break;
         } catch {}
       }
-      if (!raw!) {
+      if (!raw) {
         throw new Error("Failed to auto-start firecode server.");
       }
     }

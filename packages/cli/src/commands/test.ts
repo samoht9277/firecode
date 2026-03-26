@@ -1,4 +1,3 @@
-import { parseDiff, analyzeChanges, generatePlan, generateTests, runTests } from "@firecode/testgen";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
@@ -14,6 +13,7 @@ export async function testCommand(options: TestOptions): Promise<void> {
   const baseUrl = options.baseUrl ?? "http://localhost:3000";
 
   try {
+    const { parseDiff, analyzeChanges, generatePlan, generateTests, runTests } = await import("@firecode/testgen");
     console.log(`Parsing git diff (${target})...`);
     const diff = await parseDiff(target);
 
