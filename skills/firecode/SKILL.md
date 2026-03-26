@@ -78,6 +78,7 @@ firecode network main
 - `firecode network <page> [--all] [--clear]` — show failed network requests
 - `firecode cookies <page>` — show cookies for the page
 - `firecode storage <page> [--session]` — show localStorage (or sessionStorage with --session)
+- `firecode storage <page> --clear` — clear all storage (add --session to clear only sessionStorage)
 - `firecode pdf <page> [path]` — export page as PDF (headless mode only)
 
 ### Recording
