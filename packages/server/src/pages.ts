@@ -1,9 +1,11 @@
 import type { BrowserContext, Page } from "playwright";
-import type { PageInfo, RefMap } from "./types.js";
+import type { PageInfo, RefMap, ConsoleEntry, NetworkEntry } from "./types.js";
 
 interface PageEntry {
   page: Page;
   refMap: RefMap;
+  consoleLogs: ConsoleEntry[];
+  networkLogs: NetworkEntry[];
 }
 
 export class PageManager {
@@ -12,6 +14,25 @@ export class PageManager {
 
   setContext(context: BrowserContext): void {
     this.context = context;
+  }
+
+  private attachListeners(page: Page, entry: PageEntry): void {
+    page.on("console", (msg) => {
+      entry.consoleLogs.push({
+        type: msg.type(),
+        text: msg.text(),
+        timestamp: Date.now(),
+      });
+    });
+
+    page.on("response", (res) => {
+      entry.networkLogs.push({
+        status: res.status(),
+        method: res.request().method(),
+        url: res.url(),
+        timestamp: Date.now(),
+      });
+    });
   }
 
   async createPage(name: string): Promise<PageInfo> {
@@ -28,9 +49,6 @@ export class PageManager {
       throw new Error("Browser not connected");
     }
 
-    // Reuse the blank tab if this is the first page,
-    // otherwise use window.open() to open a tab in the same window
-    // (context.newPage() always opens a new OS window in Firefox)
     const existingPages = this.context.pages();
     const blankPage = existingPages.find(
       (p) => p.url() === "about:blank" || p.url() === "",
@@ -50,10 +68,15 @@ export class PageManager {
     } else {
       page = await this.context.newPage();
     }
-    this.pages.set(name, {
+
+    const entry: PageEntry = {
       page,
       refMap: { refs: new Map(), timestamp: 0 },
-    });
+      consoleLogs: [],
+      networkLogs: [],
+    };
+    this.attachListeners(page, entry);
+    this.pages.set(name, entry);
 
     return { name, url: page.url(), title: await page.title() };
   }
@@ -61,7 +84,9 @@ export class PageManager {
   getPage(name: string): Page {
     const entry = this.pages.get(name);
     if (!entry) {
-      throw new Error(`Page "${name}" not found. Use "firecode browse ${name} navigate <url>" to create it.`);
+      throw new Error(
+        `Page "${name}" not found. Use "firecode browse ${name} navigate <url>" to create it.`,
+      );
     }
     return entry.page;
   }
@@ -80,6 +105,26 @@ export class PageManager {
       throw new Error(`Page "${name}" not found`);
     }
     entry.refMap = refMap;
+  }
+
+  getConsoleLogs(name: string, clear: boolean): ConsoleEntry[] {
+    const entry = this.pages.get(name);
+    if (!entry) {
+      throw new Error(`Page "${name}" not found`);
+    }
+    const logs = [...entry.consoleLogs];
+    if (clear) entry.consoleLogs = [];
+    return logs;
+  }
+
+  getNetworkLogs(name: string, clear: boolean): NetworkEntry[] {
+    const entry = this.pages.get(name);
+    if (!entry) {
+      throw new Error(`Page "${name}" not found`);
+    }
+    const logs = [...entry.networkLogs];
+    if (clear) entry.networkLogs = [];
+    return logs;
   }
 
   async listPages(): Promise<PageInfo[]> {

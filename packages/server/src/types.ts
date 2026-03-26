@@ -24,7 +24,13 @@ export type ActionType =
   | "select"
   | "type"
   | "wait"
-  | "hover";
+  | "hover"
+  | "evaluate"
+  | "scroll"
+  | "wait-for"
+  | "reload"
+  | "back"
+  | "forward";
 
 export interface ActionRequest {
   action: ActionType;
@@ -38,6 +44,19 @@ export interface ActionResult {
 
 export interface RefMap {
   refs: Map<string, { role: string; name: string }>;
+  timestamp: number;
+}
+
+export interface ConsoleEntry {
+  type: string;
+  text: string;
+  timestamp: number;
+}
+
+export interface NetworkEntry {
+  status: number;
+  method: string;
+  url: string;
   timestamp: number;
 }
 
