@@ -1,5 +1,11 @@
 import type { Page, Locator } from "playwright";
-import type { RefMap, SnapshotResult } from "./types.js";
+import type { RefMap } from "./types.js";
+
+const INTERACTIVE_ROLES = new Set([
+  "link", "button", "textbox", "checkbox", "radio",
+  "combobox", "slider", "switch", "tab", "menuitem",
+  "option", "searchbox", "spinbutton", "heading",
+]);
 
 export async function getSnapshot(page: Page): Promise<{ snapshot: string; refMap: RefMap }> {
   const raw = await page.locator("body").ariaSnapshot({ timeout: 10000 });
@@ -7,22 +13,14 @@ export async function getSnapshot(page: Page): Promise<{ snapshot: string; refMa
   let refCounter = 0;
   const refs = new Map<string, { role: string; name: string }>();
 
-  // Parse the ARIA snapshot YAML and add ref tags to interactive/named elements
-  // Format: "- role \"name\"" or "- role:" (container)
   const lines = raw.split("\n");
   const tagged = lines.map((line) => {
-    // Match lines like: "  - button \"Submit\"" or "  - textbox \"Email\""
     const match = line.match(/^(\s*- )(\w+)\s+"([^"]*)"(.*)$/);
     if (!match) return line;
 
     const [, indent, role, name, rest] = match;
-    const interactiveRoles = [
-      "link", "button", "textbox", "checkbox", "radio",
-      "combobox", "slider", "switch", "tab", "menuitem",
-      "option", "searchbox", "spinbutton", "heading",
-    ];
 
-    if (interactiveRoles.includes(role) || name) {
+    if (INTERACTIVE_ROLES.has(role) || name) {
       refCounter++;
       const refId = `e${refCounter}`;
       refs.set(refId, { role, name });

@@ -23,6 +23,7 @@ export class PageManager {
         text: msg.text(),
         timestamp: Date.now(),
       });
+      if (entry.consoleLogs.length > 1000) entry.consoleLogs.shift();
     });
 
     page.on("response", (res) => {
@@ -32,6 +33,7 @@ export class PageManager {
         url: res.url(),
         timestamp: Date.now(),
       });
+      if (entry.networkLogs.length > 1000) entry.networkLogs.shift();
     });
   }
 
@@ -81,47 +83,37 @@ export class PageManager {
     return { name, url: page.url(), title: await page.title() };
   }
 
-  getPage(name: string): Page {
+  private getEntry(name: string): PageEntry {
     const entry = this.pages.get(name);
     if (!entry) {
       throw new Error(
         `Page "${name}" not found. Use "firecode browse ${name} navigate <url>" to create it.`,
       );
     }
-    return entry.page;
+    return entry;
+  }
+
+  getPage(name: string): Page {
+    return this.getEntry(name).page;
   }
 
   getRefMap(name: string): RefMap {
-    const entry = this.pages.get(name);
-    if (!entry) {
-      throw new Error(`Page "${name}" not found`);
-    }
-    return entry.refMap;
+    return this.getEntry(name).refMap;
   }
 
   setRefMap(name: string, refMap: RefMap): void {
-    const entry = this.pages.get(name);
-    if (!entry) {
-      throw new Error(`Page "${name}" not found`);
-    }
-    entry.refMap = refMap;
+    this.getEntry(name).refMap = refMap;
   }
 
   getConsoleLogs(name: string, clear: boolean): ConsoleEntry[] {
-    const entry = this.pages.get(name);
-    if (!entry) {
-      throw new Error(`Page "${name}" not found`);
-    }
+    const entry = this.getEntry(name);
     const logs = [...entry.consoleLogs];
     if (clear) entry.consoleLogs = [];
     return logs;
   }
 
   getNetworkLogs(name: string, clear: boolean): NetworkEntry[] {
-    const entry = this.pages.get(name);
-    if (!entry) {
-      throw new Error(`Page "${name}" not found`);
-    }
+    const entry = this.getEntry(name);
     const logs = [...entry.networkLogs];
     if (clear) entry.networkLogs = [];
     return logs;

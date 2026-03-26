@@ -27,15 +27,8 @@ export async function runTests(
       {
         cwd: process.cwd(),
         timeout: 120000,
-        env: {
-          ...process.env,
-          PLAYWRIGHT_BROWSERS_PATH:
-            process.env.PLAYWRIGHT_BROWSERS_PATH ?? undefined,
-        },
       },
     );
-
-    if (cleanup) await rm(testDir, { recursive: true, force: true });
 
     return {
       passed: true,
@@ -43,12 +36,14 @@ export async function runTests(
       exitCode: 0,
     };
   } catch (err: any) {
-    if (cleanup) await rm(testDir, { recursive: true, force: true });
-
     return {
       passed: false,
       output: (err.stdout ?? "") + (err.stderr ?? ""),
       exitCode: err.code ?? 1,
     };
+  } finally {
+    if (cleanup) {
+      await rm(testDir, { recursive: true, force: true }).catch(() => {});
+    }
   }
 }

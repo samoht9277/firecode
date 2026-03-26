@@ -1,7 +1,4 @@
-import type { Page, Locator } from "playwright";
-
 export interface ServerState {
-  wsEndpoint: string;
   httpPort: number;
   pid: number;
 }
@@ -10,11 +7,6 @@ export interface PageInfo {
   name: string;
   url: string;
   title: string;
-}
-
-export interface SnapshotResult {
-  snapshot: string;
-  refCount: number;
 }
 
 export type ActionType =

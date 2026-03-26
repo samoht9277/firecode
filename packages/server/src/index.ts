@@ -8,10 +8,10 @@ import type { ServerState } from "./types.js";
 export { PageManager } from "./pages.js";
 export { getSnapshot, resolveRef } from "./snapshot.js";
 export { createApp } from "./api.js";
+export { SERVER_STATE_PATH, FIRECODE_DIR } from "./types.js";
 export type {
   ServerState,
   PageInfo,
-  SnapshotResult,
   ActionType,
   ActionRequest,
   ActionResult,
@@ -33,8 +33,6 @@ export async function startServer(
 
   console.log(`Launching Firefox (${headless ? "headless" : "headed"})...`);
 
-  // Use launch() directly instead of launchServer()+connect()
-  // so we control the single browser instance and its contexts
   const browser = await firefox.launch({
     headless,
     firefoxUserPrefs: {
@@ -43,7 +41,6 @@ export async function startServer(
     },
   });
 
-  // Create a single context — one OS window, all pages become tabs
   const context = await browser.newContext();
   await context.addInitScript(() => {
     Object.defineProperty(navigator, "webdriver", { get: () => false });
@@ -59,7 +56,6 @@ export async function startServer(
 
   await mkdir(FIRECODE_DIR, { recursive: true });
   const state: ServerState = {
-    wsEndpoint: "",
     httpPort,
     pid: process.pid,
   };

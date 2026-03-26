@@ -1,12 +1,6 @@
 import { readFile } from "node:fs/promises";
-
-interface ServerState {
-  wsEndpoint: string;
-  httpPort: number;
-  pid: number;
-}
-
-const SERVER_STATE_PATH = `${process.env.HOME}/.firecode/server.json`;
+import { SERVER_STATE_PATH } from "@firecode/server";
+import type { ServerState } from "@firecode/server";
 
 export class FirecodeClient {
   private baseUrl: string;
@@ -38,13 +32,17 @@ export class FirecodeClient {
     return client;
   }
 
-  async get(path: string): Promise<any> {
-    const res = await fetch(`${this.baseUrl}${path}`);
+  private async request(path: string, init?: RequestInit): Promise<any> {
+    const res = await fetch(`${this.baseUrl}${path}`, init);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.message ?? `HTTP ${res.status}`);
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message ?? `HTTP ${res.status}`);
     }
     return res.json();
+  }
+
+  async get(path: string): Promise<any> {
+    return this.request(path);
   }
 
   async post(path: string, body?: any): Promise<any> {
@@ -53,20 +51,10 @@ export class FirecodeClient {
       options.headers = { "Content-Type": "application/json" };
       options.body = JSON.stringify(body);
     }
-    const res = await fetch(`${this.baseUrl}${path}`, options);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.message ?? `HTTP ${res.status}`);
-    }
-    return res.json();
+    return this.request(path, options);
   }
 
   async del(path: string): Promise<any> {
-    const res = await fetch(`${this.baseUrl}${path}`, { method: "DELETE" });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.message ?? `HTTP ${res.status}`);
-    }
-    return res.json();
+    return this.request(path, { method: "DELETE" });
   }
 }
