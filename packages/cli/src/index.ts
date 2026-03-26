@@ -112,9 +112,10 @@ program
 
 program
   .command("storage")
-  .description("Show localStorage/sessionStorage for a page")
+  .description("Show or clear localStorage/sessionStorage for a page")
   .argument("<page>", "Page name")
   .option("--session", "Show sessionStorage instead of localStorage")
+  .option("--clear", "Clear storage (both by default, or just session with --session)")
   .action((page, options) => {
     storageCommand(page, options);
   });

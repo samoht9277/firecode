@@ -104,6 +104,20 @@ export function createApp(pageManager: PageManager) {
     },
   );
 
+  // Clear storage
+  app.post<{ Params: { name: string }; Body: { type?: string } }>(
+    "/pages/:name/storage/clear",
+    async (req) => {
+      const page = pageManager.getPage(req.params.name);
+      const storageType = req.body?.type ?? "all";
+      await page.evaluate((t) => {
+        if (t === "local" || t === "all") localStorage.clear();
+        if (t === "session" || t === "all") sessionStorage.clear();
+      }, storageType);
+      return { ok: true, message: `Cleared ${storageType === "all" ? "localStorage and sessionStorage" : storageType + "Storage"}` };
+    },
+  );
+
   // Screenshot with pixel-level diff
   app.post<{
     Params: { name: string };
