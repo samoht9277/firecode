@@ -41,7 +41,10 @@ export async function startServer(
     },
   });
 
-  const context = await browser.newContext();
+  // Reuse the default context from launch() so we don't create an extra window.
+  // firefox.launch() creates one context with one blank page — that's our window.
+  const contexts = browser.contexts();
+  const context = contexts.length > 0 ? contexts[0] : await browser.newContext();
   await context.addInitScript(() => {
     Object.defineProperty(navigator, "webdriver", { get: () => false });
   });
