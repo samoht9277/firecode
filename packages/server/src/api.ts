@@ -143,7 +143,7 @@ export function createApp(pageManager: PageManager) {
         }
         case "click": {
           const locator = resolveRef(page, refMap, args[0]);
-          await locator.click({ force });
+          await locator.click({ force, timeout: 5000 });
           return { ok: true, message: `Clicked ${args[0]}` };
         }
         case "fill": {
@@ -220,6 +220,12 @@ export function createApp(pageManager: PageManager) {
         case "forward": {
           await page.goForward({ waitUntil: "domcontentloaded" });
           return { ok: true, message: `Went forward, now at ${page.url()}` };
+        }
+        case "keyboard": {
+          const key = args[0];
+          if (!key) throw new Error("keyboard requires a key name (e.g. ArrowRight, Enter, Space)");
+          await page.keyboard.press(key);
+          return { ok: true, message: `Pressed ${key}` };
         }
         default:
           throw new Error(`Unknown action: ${action}`);

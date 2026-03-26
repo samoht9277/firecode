@@ -22,7 +22,8 @@ export type ActionType =
   | "wait-for"
   | "reload"
   | "back"
-  | "forward";
+  | "forward"
+  | "keyboard";
 
 export interface ActionRequest {
   action: ActionType;

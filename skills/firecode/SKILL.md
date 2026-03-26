@@ -62,6 +62,7 @@ firecode network main
 - `firecode browse <page> reload` — refresh the page
 - `firecode browse <page> back` — go back in history
 - `firecode browse <page> forward` — go forward in history
+- `firecode browse <page> keyboard <key>` — press a key (e.g. ArrowRight, Enter, Space, Tab, Escape)
 
 ### Observing
 - `firecode snapshot <page>` — get ARIA accessibility tree with ref IDs

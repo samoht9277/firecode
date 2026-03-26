@@ -1,5 +1,5 @@
 import { firefox } from "playwright";
-import { mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { createApp } from "./api.js";
 import { PageManager } from "./pages.js";
 import { SERVER_STATE_PATH, FIRECODE_DIR } from "./types.js";
@@ -30,6 +30,21 @@ export async function startServer(
 ): Promise<void> {
   const headless = options.headless ?? false;
   const port = options.port ?? 0;
+
+  // Clean up stale state file from a crashed/killed server
+  try {
+    const raw = await readFile(SERVER_STATE_PATH, "utf-8");
+    const old: ServerState = JSON.parse(raw);
+    try {
+      process.kill(old.pid, 0); // check if process exists
+      console.error(`Firecode server already running (PID ${old.pid}). Run: firecode stop`);
+      process.exit(1);
+    } catch {
+      // Process doesn't exist, stale file — clean it up
+      await rm(SERVER_STATE_PATH);
+      console.log("Cleaned up stale state file from previous session.");
+    }
+  } catch {}
 
   console.log(`Launching Firefox (${headless ? "headless" : "headed"})...`);
 
