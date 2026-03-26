@@ -23,7 +23,11 @@ export type ActionType =
   | "reload"
   | "back"
   | "forward"
-  | "keyboard";
+  | "keyboard"
+  | "viewport"
+  | "click-text"
+  | "assert-text"
+  | "wait-idle";
 
 export interface ActionRequest {
   action: ActionType;

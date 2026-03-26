@@ -2,7 +2,8 @@ import { FirecodeClient } from "../client.js";
 
 const VALID_ACTIONS = [
   "navigate", "click", "fill", "select", "type", "wait", "hover",
-  "evaluate", "scroll", "wait-for", "reload", "back", "forward", "keyboard",
+  "evaluate", "scroll", "wait-for", "reload", "back", "forward",
+  "keyboard", "viewport", "click-text", "assert-text", "wait-idle",
 ] as const;
 
 export async function browseCommand(

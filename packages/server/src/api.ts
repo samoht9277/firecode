@@ -227,6 +227,48 @@ export function createApp(pageManager: PageManager) {
           await page.keyboard.press(key);
           return { ok: true, message: `Pressed ${key}` };
         }
+        case "viewport": {
+          const presets: Record<string, { width: number; height: number }> = {
+            mobile: { width: 375, height: 812 },
+            tablet: { width: 768, height: 1024 },
+            desktop: { width: 1280, height: 720 },
+            "desktop-hd": { width: 1920, height: 1080 },
+          };
+          const preset = presets[args[0]];
+          if (preset) {
+            await page.setViewportSize(preset);
+            return { ok: true, message: `Viewport set to ${args[0]} (${preset.width}x${preset.height})` };
+          }
+          const width = parseInt(args[0], 10);
+          const height = parseInt(args[1], 10);
+          if (isNaN(width) || isNaN(height)) {
+            throw new Error("viewport requires width height or a preset (mobile, tablet, desktop, desktop-hd)");
+          }
+          await page.setViewportSize({ width, height });
+          return { ok: true, message: `Viewport set to ${width}x${height}` };
+        }
+        case "click-text": {
+          const text = args[0];
+          if (!text) throw new Error("click-text requires text to click");
+          await page.getByText(text, { exact: false }).first().click({ force, timeout: 5000 });
+          return { ok: true, message: `Clicked text "${text}"` };
+        }
+        case "assert-text": {
+          const text = args[0];
+          if (!text) throw new Error("assert-text requires text to check");
+          const timeout = parseInt(getFlagValue(args, "--timeout") ?? "5000", 10);
+          try {
+            await page.getByText(text).waitFor({ timeout });
+            return { ok: true, message: `PASS: "${text}" found on page` };
+          } catch {
+            throw new Error(`FAIL: "${text}" not found on page within ${timeout}ms`);
+          }
+        }
+        case "wait-idle": {
+          const timeout = parseInt(args[0] ?? "10000", 10);
+          await page.waitForLoadState("networkidle", { timeout });
+          return { ok: true, message: "Page is idle (no pending network requests)" };
+        }
         default:
           throw new Error(`Unknown action: ${action}`);
       }
