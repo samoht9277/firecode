@@ -14,6 +14,7 @@ You have access to a real Firefox browser. Use it to verify your work on web app
 - You want to check what a page looks like before and after your changes
 - The user asks you to test or verify something in the browser
 - You need to fill out a form, click through a flow, or interact with UI
+- You want to catch JS errors or failed network requests
 
 ## Quick Start
 
@@ -33,31 +34,52 @@ firecode browse main fill e5 "hello@example.com"
 
 # 5. Verify the result
 firecode snapshot main
+
+# 6. Check for errors
+firecode console main
+firecode network main
 ```
 
 ## Commands
 
 ### Server
-- `firecode start` — launch Firefox (headed by default, use `--headless` for headless)
+- `firecode start` — launch Firefox (headed by default, `--headless` for headless)
 - `firecode stop` — shut down Firefox and the server
 - `firecode status` — check if server is running, list open pages
 
 ### Browsing
-- `firecode browse <page> navigate <url>` — go to a URL (creates the page if it doesn't exist)
-- `firecode browse <page> click <ref>` — click an element by ref ID
-- `firecode browse <page> fill <ref> <value>` — clear and fill a text input
+- `firecode browse <page> navigate <url>` — go to a URL (creates page if needed)
+- `firecode browse <page> click <ref> [--force]` — click an element
+- `firecode browse <page> fill <ref> <value> [--force]` — clear and fill a text input
 - `firecode browse <page> type <ref> <text>` — type text character by character
-- `firecode browse <page> select <ref> <value>` — select a dropdown option
-- `firecode browse <page> hover <ref>` — hover over an element
+- `firecode browse <page> select <ref> <value> [--force]` — select a dropdown option
+- `firecode browse <page> hover <ref> [--force]` — hover over an element
 - `firecode browse <page> wait <ms>` — wait for a duration
+- `firecode browse <page> evaluate "<js>"` — run JavaScript and get result
+- `firecode browse <page> scroll down|up|<ref>` — scroll page or to an element
+- `firecode browse <page> wait-for "<text>"` — wait for text to appear
+- `firecode browse <page> wait-for --selector "<css>" [--timeout ms]` — wait for selector
+- `firecode browse <page> reload` — refresh the page
+- `firecode browse <page> back` — go back in history
+- `firecode browse <page> forward` — go forward in history
 
 ### Observing
-- `firecode snapshot <page>` — get the ARIA accessibility tree with ref IDs
-- `firecode screenshot <page> [path]` — capture a PNG screenshot
+- `firecode snapshot <page>` — get ARIA accessibility tree with ref IDs
+- `firecode screenshot <page> [path]` — capture PNG screenshot
+- `firecode screenshot <page> [path] --diff <baseline>` — compare against baseline
+- `firecode text <page>` — get visible text content (lighter than snapshot)
+- `firecode console <page> [--clear]` — show browser console logs
+- `firecode network <page> [--all] [--clear]` — show failed network requests
+
+### Testing
+- `firecode test` — generate and run tests from git changes
+- `firecode test --target unstaged|branch|changes` — choose diff scope
+- `firecode test --base-url http://localhost:3000` — set app URL
+- `firecode test -y` — skip plan review
 
 ## How Snapshots Work
 
-`firecode snapshot` returns a YAML-like accessibility tree. Each interactive element has a `[ref=eN]` tag you can use in browse commands:
+`firecode snapshot` returns a YAML-like accessibility tree. Each interactive element has a `[ref=eN]` tag:
 
 ```yaml
 - navigation:
@@ -73,38 +95,40 @@ firecode snapshot main
 To fill the name field: `firecode browse main fill e4 "John Doe"`
 To click save: `firecode browse main click e6`
 
-**Important:** Refs are tied to the last snapshot. If the page changes (navigation, dynamic content), take a new snapshot before interacting.
+**Important:** Refs are tied to the last snapshot. If the page changes, take a new snapshot.
+
+## Debugging Workflow
+
+When verifying your changes:
+
+```bash
+# 1. Navigate and check the page
+firecode browse app navigate "http://localhost:3000"
+firecode snapshot app
+
+# 2. Check for JS errors
+firecode console app
+
+# 3. Check for failed API calls
+firecode network app
+
+# 4. If something looks wrong, get a screenshot
+firecode screenshot app /tmp/debug.png
+
+# 5. After making a fix, reload and check again
+firecode browse app reload
+firecode console app --clear
+firecode snapshot app
+```
 
 ## Tips
 
-- **One action at a time.** Don't try to batch multiple actions. Do one thing, check the result.
-- **Snapshot before interacting.** Always know what's on the page before clicking/filling.
-- **Snapshot after interacting.** Verify your action had the expected effect.
-- **Use named pages.** `main` for the primary page, `debug` for a second tab, etc. Pages persist between commands.
-- **Screenshot for visual issues.** Snapshots show structure, screenshots show appearance. Use screenshots when layout/styling matters.
-- **Navigate creates the page.** You don't need to explicitly create a page, just navigate to a URL.
+- **One action at a time.** Do one thing, check the result.
+- **Snapshot before interacting.** Know what's on the page before clicking.
+- **Snapshot after interacting.** Verify your action worked.
+- **Check console after page loads.** Catch React errors, unhandled promises early.
+- **Check network after page loads.** Catch 404s and failed API calls.
+- **Use --force for stubborn elements.** Sticky navs and overlays can block clicks.
+- **Screenshot for visual issues.** Snapshots show structure, screenshots show appearance.
+- **Use evaluate for quick checks.** `firecode browse main evaluate "document.title"` is faster than a full snapshot.
 - **If a ref fails,** the page probably changed. Take a fresh snapshot.
-
-## Example Workflow: Verify a Form Submission
-
-```bash
-firecode start
-firecode browse app navigate "http://localhost:3000/signup"
-firecode snapshot app
-# Output shows: textbox "Email" [ref=e3], textbox "Password" [ref=e4], button "Sign Up" [ref=e5]
-firecode browse app fill e3 "test@example.com"
-firecode browse app fill e4 "password123"
-firecode browse app click e5
-firecode snapshot app
-# Check if we're on a success page or if there's an error message
-```
-
-## Example Workflow: Debug a Broken Page
-
-```bash
-firecode browse debug navigate "http://localhost:3000/broken-page"
-firecode snapshot debug
-# Read the snapshot to understand the page structure
-firecode screenshot debug /tmp/broken-page.png
-# Look at the screenshot for visual issues
-```
