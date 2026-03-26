@@ -50,7 +50,27 @@ firecode browse <page> wait-for --selector ".my-class" --timeout 5000
 - Default timeout: 10000ms, override with `--timeout`
 - API: `POST /pages/:name/action` with `{ action: "wait-for", args: ["text or selector", "--selector"?, "--timeout"?, "ms"?] }`
 
-### 5. `text` command — Get visible text content
+### 5. `reload` action — Refresh the page
+
+```bash
+firecode browse <page> reload
+```
+
+- Calls `page.reload({ waitUntil: "domcontentloaded" })`
+- API: `POST /pages/:name/action` with `{ action: "reload", args: [] }`
+
+### 6. `back` / `forward` actions — Browser history navigation
+
+```bash
+firecode browse <page> back
+firecode browse <page> forward
+```
+
+- Calls `page.goBack()` / `page.goForward()`
+- Returns the new URL after navigation
+- API: `POST /pages/:name/action` with `{ action: "back"|"forward", args: [] }`
+
+### 7. `text` command — Get visible text content
 
 ```bash
 firecode text <page>
@@ -59,6 +79,52 @@ firecode text <page>
 - Returns `page.innerText('body')` — just the visible text, no structure
 - Lighter than snapshot, good for reading content
 - API: `GET /pages/:name/text`
+
+## New Observability Commands
+
+### 8. `console` command — Browser console logs
+
+```bash
+firecode console <page>
+firecode console <page> --clear
+```
+
+- Server captures all console messages per page from the moment the page is created
+- Stores them in a buffer per page: `{ type: "log"|"warn"|"error"|"info", text: string, timestamp: number }[]`
+- `firecode console <page>` dumps the buffer to stdout, formatted as `[TYPE] message`
+- `--clear` flag clears the buffer after dumping
+- Errors and warnings are the most valuable — helps the agent catch React errors, unhandled promises, 404s, etc.
+- API: `GET /pages/:name/console?clear=true|false`
+- Implementation: `page.on("console", msg => buffer.push(...))` when page is created in PageManager
+
+### 9. `network` command — Failed network requests
+
+```bash
+firecode network <page>
+firecode network <page> --all
+firecode network <page> --clear
+```
+
+- Server captures all network responses per page
+- Default: only shows failed requests (status >= 400)
+- `--all` shows all requests
+- `--clear` clears the buffer after dumping
+- Output format: `[STATUS] METHOD url` (e.g., `[404] GET /api/users`)
+- API: `GET /pages/:name/network?all=true|false&clear=true|false`
+- Implementation: `page.on("response", res => buffer.push(...))` when page is created
+
+### 10. Screenshot comparison
+
+```bash
+firecode screenshot <page> [path] --diff <baseline-path>
+```
+
+- When `--diff` is provided, take a new screenshot and compare against the baseline
+- Use pixel-by-pixel comparison (simple approach: compare PNG buffers, report % of pixels that differ)
+- Output: `Changed: 3.2% of pixels differ` or `No changes detected`
+- Save the diff image highlighting changed pixels if there are differences
+- Useful for: "I changed the CSS, did it break the layout?"
+- Keep it simple — no fancy perceptual diff, just pixel comparison via raw buffer comparison
 
 ## Phase 2: Test Mode
 
@@ -111,13 +177,17 @@ Each template function takes `{ filePath, diff, baseUrl }` and returns a Playwri
 ## Files Changed
 
 ### Modified
-- `packages/server/src/api.ts` — new action cases (evaluate, scroll, wait-for), text endpoint, force flag parsing
-- `packages/server/src/types.ts` — add new ActionTypes
+- `packages/server/src/api.ts` — new action cases (evaluate, scroll, wait-for, reload, back, forward), text/console/network endpoints, force flag parsing, screenshot diff
+- `packages/server/src/types.ts` — add new ActionTypes, ConsoleEntry, NetworkEntry types
+- `packages/server/src/pages.ts` — attach console/network listeners on page create, store buffers per page
 - `packages/cli/src/commands/browse.ts` — parse `--force` flag, pass through
-- `packages/cli/src/index.ts` — register `text` and `test` commands
+- `packages/cli/src/commands/screenshot.ts` — add `--diff` flag
+- `packages/cli/src/index.ts` — register text, console, network, test commands
 
 ### New
 - `packages/cli/src/commands/text.ts` — text command
+- `packages/cli/src/commands/console.ts` — console command
+- `packages/cli/src/commands/network.ts` — network command
 - `packages/cli/src/commands/test.ts` — test command orchestration
 - `packages/testgen/package.json`
 - `packages/testgen/tsconfig.json`
@@ -130,4 +200,4 @@ Each template function takes `{ filePath, diff, baseUrl }` and returns a Playwri
 - `packages/testgen/src/index.ts`
 
 ### Updated
-- `skills/firecode/SKILL.md` — document new commands
+- `skills/firecode/SKILL.md` — document all new commands
