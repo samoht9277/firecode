@@ -9,13 +9,22 @@ import { textCommand } from "./commands/text.js";
 import { consoleCommand } from "./commands/console.js";
 import { networkCommand } from "./commands/network.js";
 import { testCommand } from "./commands/test.js";
+import { cookiesCommand } from "./commands/cookies.js";
+import { storageCommand } from "./commands/storage.js";
+import { pdfCommand } from "./commands/pdf.js";
+import {
+  recordStartCommand,
+  recordStopCommand,
+  recordSaveCommand,
+  replayCommand,
+} from "./commands/record.js";
 
 const program = new Command();
 
 program
   .name("firecode")
   .description("Firefox browser automation for AI agents")
-  .version("0.1.0");
+  .version("0.2.0");
 
 program
   .command("start")
@@ -46,7 +55,7 @@ program
   .argument("<page>", "Page name")
   .argument(
     "<action>",
-    "Action: navigate, click, fill, select, type, wait, hover, evaluate, scroll, wait-for, reload, back, forward",
+    "Action: navigate, click, fill, select, type, wait, hover, evaluate, scroll, wait-for, reload, back, forward, keyboard, viewport, click-text, assert-text, wait-idle",
   )
   .argument("[args...]", "Action arguments")
   .option("--force", "Force action past overlays")
@@ -65,7 +74,7 @@ program
   .description("Capture a screenshot of a page")
   .argument("<page>", "Page name")
   .argument("[path]", "Output file path")
-  .option("--diff <baseline>", "Compare against baseline screenshot")
+  .option("--diff <baseline>", "Compare against baseline screenshot (pixel-level)")
   .action((page, path, options) => {
     screenshotCommand(page, path, options);
   });
@@ -94,6 +103,58 @@ program
   .action((page, options) => {
     networkCommand(page, options);
   });
+
+program
+  .command("cookies")
+  .description("Show cookies for a page")
+  .argument("<page>", "Page name")
+  .action(cookiesCommand);
+
+program
+  .command("storage")
+  .description("Show localStorage/sessionStorage for a page")
+  .argument("<page>", "Page name")
+  .option("--session", "Show sessionStorage instead of localStorage")
+  .action((page, options) => {
+    storageCommand(page, options);
+  });
+
+program
+  .command("pdf")
+  .description("Export page as PDF (headless mode only)")
+  .argument("<page>", "Page name")
+  .argument("[path]", "Output file path")
+  .action(pdfCommand);
+
+const record = program
+  .command("record")
+  .description("Record and replay interactions");
+
+record
+  .command("start")
+  .description("Start recording actions on a page")
+  .argument("<page>", "Page name")
+  .action(recordStartCommand);
+
+record
+  .command("stop")
+  .description("Stop recording and show captured steps")
+  .argument("<page>", "Page name")
+  .action(recordStopCommand);
+
+record
+  .command("save")
+  .description("Save recording to a JSON file")
+  .argument("<page>", "Page name")
+  .argument("<path>", "Output file path")
+  .action(recordSaveCommand);
+
+program
+  .command("replay")
+  .description("Replay a saved recording")
+  .argument("<page>", "Page name")
+  .argument("<path>", "Recording JSON file")
+  .action(replayCommand);
 
 program
   .command("test")

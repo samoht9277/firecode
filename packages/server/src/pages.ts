@@ -1,11 +1,19 @@
 import type { BrowserContext, Page } from "playwright";
 import type { PageInfo, RefMap, ConsoleEntry, NetworkEntry } from "./types.js";
 
+interface RecordedStep {
+  action: string;
+  args: string[];
+  timestamp: number;
+}
+
 interface PageEntry {
   page: Page;
   refMap: RefMap;
   consoleLogs: ConsoleEntry[];
   networkLogs: NetworkEntry[];
+  recording: RecordedStep[];
+  isRecording: boolean;
 }
 
 export class PageManager {
@@ -76,6 +84,8 @@ export class PageManager {
       refMap: { refs: new Map(), timestamp: 0 },
       consoleLogs: [],
       networkLogs: [],
+      recording: [],
+      isRecording: false,
     };
     this.attachListeners(page, entry);
     this.pages.set(name, entry);
@@ -117,6 +127,29 @@ export class PageManager {
     const logs = [...entry.networkLogs];
     if (clear) entry.networkLogs = [];
     return logs;
+  }
+
+  startRecording(name: string): void {
+    const entry = this.getEntry(name);
+    entry.recording = [];
+    entry.isRecording = true;
+  }
+
+  stopRecording(name: string): RecordedStep[] {
+    const entry = this.getEntry(name);
+    entry.isRecording = false;
+    return [...entry.recording];
+  }
+
+  getRecording(name: string): RecordedStep[] {
+    return [...this.getEntry(name).recording];
+  }
+
+  recordAction(name: string, action: string, args: string[]): void {
+    const entry = this.pages.get(name);
+    if (entry?.isRecording) {
+      entry.recording.push({ action, args, timestamp: Date.now() });
+    }
   }
 
   async listPages(): Promise<PageInfo[]> {

@@ -5,7 +5,11 @@ description: Browse websites with Firefox to verify your work, debug UI issues, 
 
 # Firecode — Browser Automation for Agents
 
-You have access to a real Firefox browser. Use it to verify your work on web apps, debug UI issues, find bugs, and check that things look right, without asking the user to describe what they see.
+You have access to a real Firefox browser via the `firecode` CLI. Use it to verify your work on web apps, debug UI issues, find bugs, and check that things look right, without asking the user to describe what they see.
+
+Run commands with `firecode <command>` (shell alias is already configured).
+
+If the server isn't running, it auto-starts in headless mode when you run any command.
 
 ## When to Use
 
@@ -19,23 +23,20 @@ You have access to a real Firefox browser. Use it to verify your work on web app
 ## Quick Start
 
 ```bash
-# 1. Start the server (do this once per session)
-firecode start
-
-# 2. Navigate to the app
+# Navigate to the app (auto-starts server if needed)
 firecode browse main navigate "http://localhost:3000"
 
-# 3. See what's on the page
+# See what's on the page
 firecode snapshot main
 
-# 4. Interact with elements using ref IDs from the snapshot
+# Interact with elements using ref IDs from the snapshot
 firecode browse main click e4
 firecode browse main fill e5 "hello@example.com"
 
-# 5. Verify the result
+# Verify the result
 firecode snapshot main
 
-# 6. Check for errors
+# Check for errors
 firecode console main
 firecode network main
 ```
@@ -71,10 +72,19 @@ firecode network main
 ### Observing
 - `firecode snapshot <page>` — get ARIA accessibility tree with ref IDs
 - `firecode screenshot <page> [path]` — capture PNG screenshot
-- `firecode screenshot <page> [path] --diff <baseline>` — compare against baseline
+- `firecode screenshot <page> [path] --diff <baseline>` — pixel-level comparison against baseline, outputs diff image
 - `firecode text <page>` — get visible text content (lighter than snapshot)
 - `firecode console <page> [--clear]` — show browser console logs
 - `firecode network <page> [--all] [--clear]` — show failed network requests
+- `firecode cookies <page>` — show cookies for the page
+- `firecode storage <page> [--session]` — show localStorage (or sessionStorage with --session)
+- `firecode pdf <page> [path]` — export page as PDF (headless mode only)
+
+### Recording
+- `firecode record start <page>` — start recording actions
+- `firecode record stop <page>` — stop recording and show captured steps
+- `firecode record save <page> <path>` — save recording to JSON file
+- `firecode replay <page> <path>` — replay a saved recording
 
 ### Testing
 - `firecode test` — generate and run tests from git changes
@@ -95,16 +105,15 @@ firecode network main
   - textbox "Name" [ref=e4]
   - textbox "Email" [ref=e5]
   - button "Save" [ref=e6]
+  - button [ref=e7]:
 ```
 
-To fill the name field: `firecode browse main fill e4 "John Doe"`
-To click save: `firecode browse main click e6`
+Named elements: `firecode browse main click e6` (clicks "Save")
+Unnamed elements: `firecode browse main click e7` (clicks the unnamed button)
 
 **Important:** Refs are tied to the last snapshot. If the page changes, take a new snapshot.
 
 ## Debugging Workflow
-
-When verifying your changes:
 
 ```bash
 # 1. Navigate and check the page
@@ -120,10 +129,26 @@ firecode network app
 # 4. If something looks wrong, get a screenshot
 firecode screenshot app /tmp/debug.png
 
-# 5. After making a fix, reload and check again
+# 5. Check cookies/storage if debugging auth or state
+firecode cookies app
+firecode storage app
+
+# 6. After making a fix, reload and check again
 firecode browse app reload
 firecode console app --clear
 firecode snapshot app
+```
+
+## Visual Regression Testing
+
+```bash
+# Take a baseline screenshot
+firecode screenshot app /tmp/before.png
+
+# Make your changes, then compare
+firecode screenshot app /tmp/after.png --diff /tmp/before.png
+# Output: "Changed: 2.3% (1847/80000 pixels differ)"
+# Diff image saved to /tmp/after-diff.png with changed pixels highlighted
 ```
 
 ## Tips
@@ -136,4 +161,5 @@ firecode snapshot app
 - **Use --force for stubborn elements.** Sticky navs and overlays can block clicks.
 - **Screenshot for visual issues.** Snapshots show structure, screenshots show appearance.
 - **Use evaluate for quick checks.** `firecode browse main evaluate "document.title"` is faster than a full snapshot.
+- **Test responsive layouts.** `firecode browse main viewport mobile` then take a screenshot.
 - **If a ref fails,** the page probably changed. Take a fresh snapshot.

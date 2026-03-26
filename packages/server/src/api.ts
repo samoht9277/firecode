@@ -1,5 +1,8 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 import Fastify from "fastify";
+import pixelmatch from "pixelmatch";
+import { PNG } from "pngjs";
 import { PageManager } from "./pages.js";
 import { getSnapshot, resolveRef } from "./snapshot.js";
 import type { ActionRequest } from "./types.js";
@@ -72,6 +75,36 @@ export function createApp(pageManager: PageManager) {
     return { logs };
   });
 
+  // Cookies
+  app.get<{ Params: { name: string } }>(
+    "/pages/:name/cookies",
+    async (req) => {
+      const page = pageManager.getPage(req.params.name);
+      const cookies = await page.context().cookies();
+      return { cookies };
+    },
+  );
+
+  // Storage (localStorage + sessionStorage)
+  app.get<{ Params: { name: string }; Querystring: { type?: string } }>(
+    "/pages/:name/storage",
+    async (req) => {
+      const page = pageManager.getPage(req.params.name);
+      const storageType = req.query.type ?? "local";
+      const data = await page.evaluate((t) => {
+        const storage = t === "session" ? sessionStorage : localStorage;
+        const result: Record<string, string> = {};
+        for (let i = 0; i < storage.length; i++) {
+          const key = storage.key(i);
+          if (key) result[key] = storage.getItem(key) ?? "";
+        }
+        return result;
+      }, storageType);
+      return { type: storageType, data };
+    },
+  );
+
+  // Screenshot with pixel-level diff
   app.post<{
     Params: { name: string };
     Body: { path?: string; diff?: string };
@@ -83,41 +116,58 @@ export function createApp(pageManager: PageManager) {
 
     if (req.body?.diff) {
       const baselinePath = req.body.diff;
-      const [baseline, current] = await Promise.all([
+      const [baselineBuf, currentBuf] = await Promise.all([
         readFile(baselinePath),
         readFile(screenshotPath),
       ]);
 
-      if (baseline.length !== current.length) {
+      const baseline = PNG.sync.read(baselineBuf);
+      const current = PNG.sync.read(currentBuf);
+
+      if (baseline.width !== current.width || baseline.height !== current.height) {
         return {
           ok: true,
           path: screenshotPath,
           diff: {
             changed: true,
             percent: 100,
-            message: `Changed: images have different sizes (baseline: ${baseline.length} bytes, current: ${current.length} bytes)`,
+            message: `Changed: different dimensions (${baseline.width}x${baseline.height} vs ${current.width}x${current.height})`,
           },
         };
       }
 
-      let diffBytes = 0;
-      const totalBytes = baseline.length;
-      for (let i = 0; i < totalBytes; i++) {
-        if (baseline[i] !== current[i]) diffBytes++;
-      }
-      const diffPercent = parseFloat(
-        ((diffBytes / totalBytes) * 100).toFixed(2),
+      const diffImg = new PNG({ width: baseline.width, height: baseline.height });
+      const numDiffPixels = pixelmatch(
+        baseline.data,
+        current.data,
+        diffImg.data,
+        baseline.width,
+        baseline.height,
+        { threshold: 0.1 },
       );
+      const totalPixels = baseline.width * baseline.height;
+      const diffPercent = parseFloat(
+        ((numDiffPixels / totalPixels) * 100).toFixed(2),
+      );
+
+      let diffPath: string | undefined;
+      if (numDiffPixels > 0) {
+        diffPath = screenshotPath.replace(/\.png$/, "-diff.png");
+        await writeFile(diffPath, PNG.sync.write(diffImg));
+      }
 
       return {
         ok: true,
         path: screenshotPath,
         diff: {
-          changed: diffPercent > 0,
+          changed: numDiffPixels > 0,
           percent: diffPercent,
+          pixels: numDiffPixels,
+          total: totalPixels,
+          diffImage: diffPath,
           message:
-            diffPercent > 0
-              ? `Changed: ${diffPercent}% of bytes differ`
+            numDiffPixels > 0
+              ? `Changed: ${diffPercent}% (${numDiffPixels}/${totalPixels} pixels differ)`
               : "No changes detected",
         },
       };
@@ -126,6 +176,76 @@ export function createApp(pageManager: PageManager) {
     return { ok: true, path: screenshotPath };
   });
 
+  // PDF
+  app.post<{ Params: { name: string }; Body: { path?: string } }>(
+    "/pages/:name/pdf",
+    async (req) => {
+      const page = pageManager.getPage(req.params.name);
+      const pdfPath =
+        req.body?.path ?? `/tmp/firecode-pdf-${Date.now()}.pdf`;
+      await mkdir(dirname(pdfPath), { recursive: true });
+      try {
+        await page.pdf({ path: pdfPath, format: "A4" });
+        return { ok: true, path: pdfPath };
+      } catch {
+        throw new Error(
+          "PDF generation failed. Firefox PDF only works in headless mode.",
+        );
+      }
+    },
+  );
+
+  // Recording endpoints
+  app.post<{ Params: { name: string } }>(
+    "/pages/:name/record/start",
+    async (req) => {
+      pageManager.startRecording(req.params.name);
+      return { ok: true, message: "Recording started" };
+    },
+  );
+
+  app.post<{ Params: { name: string } }>(
+    "/pages/:name/record/stop",
+    async (req) => {
+      const recording = pageManager.stopRecording(req.params.name);
+      return { ok: true, steps: recording.length, recording };
+    },
+  );
+
+  app.post<{ Params: { name: string }; Body: { path: string } }>(
+    "/pages/:name/record/save",
+    async (req) => {
+      const recording = pageManager.getRecording(req.params.name);
+      const savePath = req.body.path;
+      await writeFile(savePath, JSON.stringify(recording, null, 2));
+      return { ok: true, path: savePath, steps: recording.length };
+    },
+  );
+
+  app.post<{ Params: { name: string }; Body: { path: string } }>(
+    "/pages/:name/replay",
+    async (req) => {
+      const raw = await readFile(req.body.path, "utf-8");
+      const steps: Array<{ action: string; args: string[] }> = JSON.parse(raw);
+      const page = pageManager.getPage(req.params.name);
+      const results: string[] = [];
+
+      for (const step of steps) {
+        // Re-dispatch each step through the action handler
+        const res = await app.inject({
+          method: "POST",
+          url: `/pages/${req.params.name}/action`,
+          payload: { action: step.action, args: step.args },
+        });
+        const body = JSON.parse(res.body);
+        results.push(body.message ?? body.error);
+      }
+
+      return { ok: true, steps: results.length, results };
+    },
+  );
+
+  // Execute action
   app.post<{ Params: { name: string }; Body: ActionRequest }>(
     "/pages/:name/action",
     async (req) => {
@@ -133,6 +253,9 @@ export function createApp(pageManager: PageManager) {
       const page = pageManager.getPage(req.params.name);
       const refMap = pageManager.getRefMap(req.params.name);
       const force = hasFlag(args, "--force");
+
+      // Record the action if recording is active
+      pageManager.recordAction(req.params.name, action, args);
 
       switch (action) {
         case "navigate": {

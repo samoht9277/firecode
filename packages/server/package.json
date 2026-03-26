@@ -17,10 +17,13 @@
   },
   "dependencies": {
     "fastify": "^5",
-    "playwright": "^1.52"
+    "pixelmatch": "^7.1.0",
+    "playwright": "^1.52",
+    "pngjs": "^7.0.0"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "@types/pngjs": "^6.0.5",
     "tsup": "^8",
     "typescript": "^5.7"
   }
