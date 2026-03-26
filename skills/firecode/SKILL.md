@@ -63,7 +63,7 @@ firecode network main
 - `firecode browse <page> back` — go back in history
 - `firecode browse <page> forward` — go forward in history
 - `firecode browse <page> keyboard <key>` — press a key (e.g. ArrowRight, Enter, Space, Tab, Escape)
-- `firecode browse <page> viewport mobile|tablet|desktop|<width> <height>` — set viewport size (presets: mobile=375x812, tablet=768x1024, desktop=1280x720, desktop-hd=1920x1080)
+- `firecode browse <page> viewport mobile|tablet|desktop|<width> <height>` — set viewport size (presets: mobile=375x812, tablet=768x1024, desktop=1920x1080, desktop-hd=3840x2160)
 - `firecode browse <page> click-text "<text>"` — click by visible text (no snapshot needed)
 - `firecode browse <page> assert-text "<text>"` — check if text exists on page (fails with error if not found)
 - `firecode browse <page> wait-idle` — wait for network to be idle (no pending requests)

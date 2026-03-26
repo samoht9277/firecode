@@ -231,8 +231,8 @@ export function createApp(pageManager: PageManager) {
           const presets: Record<string, { width: number; height: number }> = {
             mobile: { width: 375, height: 812 },
             tablet: { width: 768, height: 1024 },
-            desktop: { width: 1280, height: 720 },
-            "desktop-hd": { width: 1920, height: 1080 },
+            desktop: { width: 1920, height: 1080 },
+            "desktop-hd": { width: 3840, height: 2160 },
           };
           const preset = presets[args[0]];
           if (preset) {
