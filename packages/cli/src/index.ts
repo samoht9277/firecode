@@ -8,6 +8,7 @@ import { screenshotCommand } from "./commands/screenshot.js";
 import { textCommand } from "./commands/text.js";
 import { consoleCommand } from "./commands/console.js";
 import { networkCommand } from "./commands/network.js";
+import { testCommand } from "./commands/test.js";
 
 const program = new Command();
 
@@ -92,6 +93,21 @@ program
   .option("--clear", "Clear logs after displaying")
   .action((page, options) => {
     networkCommand(page, options);
+  });
+
+program
+  .command("test")
+  .description("Generate and run tests from git changes")
+  .option(
+    "-t, --target <target>",
+    "Diff scope: unstaged, branch, changes",
+    "changes",
+  )
+  .option("--base-url <url>", "App URL to test against", "http://localhost:3000")
+  .option("-m, --message <msg>", "Targeted test instruction")
+  .option("-y, --yes", "Skip plan review")
+  .action((options) => {
+    testCommand(options);
   });
 
 program.parse();

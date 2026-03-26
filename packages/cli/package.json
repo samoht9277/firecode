@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@firecode/server": "workspace:*",
+    "@firecode/testgen": "workspace:*",
     "commander": "^13"
   },
   "devDependencies": {
