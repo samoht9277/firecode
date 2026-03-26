@@ -16,6 +16,8 @@ export type {
   ActionRequest,
   ActionResult,
   RefMap,
+  ConsoleEntry,
+  NetworkEntry,
 } from "./types.js";
 
 export interface StartServerOptions {
