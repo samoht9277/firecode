@@ -5,6 +5,9 @@ import { statusCommand } from "./commands/status.js";
 import { browseCommand } from "./commands/browse.js";
 import { snapshotCommand } from "./commands/snapshot.js";
 import { screenshotCommand } from "./commands/screenshot.js";
+import { textCommand } from "./commands/text.js";
+import { consoleCommand } from "./commands/console.js";
+import { networkCommand } from "./commands/network.js";
 
 const program = new Command();
 
@@ -40,9 +43,15 @@ program
   .command("browse")
   .description("Interact with a named page")
   .argument("<page>", "Page name")
-  .argument("<action>", "Action: navigate, click, fill, select, type, wait, hover")
+  .argument(
+    "<action>",
+    "Action: navigate, click, fill, select, type, wait, hover, evaluate, scroll, wait-for, reload, back, forward",
+  )
   .argument("[args...]", "Action arguments")
-  .action(browseCommand);
+  .option("--force", "Force action past overlays")
+  .action((page, action, args, options) => {
+    browseCommand(page, action, args, options);
+  });
 
 program
   .command("snapshot")
@@ -55,6 +64,34 @@ program
   .description("Capture a screenshot of a page")
   .argument("<page>", "Page name")
   .argument("[path]", "Output file path")
-  .action(screenshotCommand);
+  .option("--diff <baseline>", "Compare against baseline screenshot")
+  .action((page, path, options) => {
+    screenshotCommand(page, path, options);
+  });
+
+program
+  .command("text")
+  .description("Get visible text content of a page")
+  .argument("<page>", "Page name")
+  .action(textCommand);
+
+program
+  .command("console")
+  .description("Show browser console logs for a page")
+  .argument("<page>", "Page name")
+  .option("--clear", "Clear logs after displaying")
+  .action((page, options) => {
+    consoleCommand(page, options);
+  });
+
+program
+  .command("network")
+  .description("Show network requests for a page")
+  .argument("<page>", "Page name")
+  .option("--all", "Show all requests, not just failures")
+  .option("--clear", "Clear logs after displaying")
+  .action((page, options) => {
+    networkCommand(page, options);
+  });
 
 program.parse();
