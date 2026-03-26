@@ -1,4 +1,4 @@
-import type { BrowserContext, Page } from "playwright";
+import type { Browser, BrowserContext, Page } from "playwright";
 import type { PageInfo, RefMap, ConsoleEntry, NetworkEntry } from "./types.js";
 
 interface RecordedStep {
@@ -18,10 +18,21 @@ interface PageEntry {
 
 export class PageManager {
   private pages = new Map<string, PageEntry>();
+  private browser: Browser | null = null;
   private context: BrowserContext | null = null;
 
-  setContext(context: BrowserContext): void {
-    this.context = context;
+  setBrowser(browser: Browser): void {
+    this.browser = browser;
+  }
+
+  private async getContext(): Promise<BrowserContext> {
+    if (this.context) return this.context;
+    if (!this.browser) throw new Error("Browser not connected");
+    this.context = await this.browser.newContext();
+    await this.context.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => false });
+    });
+    return this.context;
   }
 
   private attachListeners(page: Page, entry: PageEntry): void {
@@ -55,11 +66,8 @@ export class PageManager {
       };
     }
 
-    if (!this.context) {
-      throw new Error("Browser not connected");
-    }
-
-    const existingPages = this.context.pages();
+    const context = await this.getContext();
+    const existingPages = context.pages();
     const blankPage = existingPages.find(
       (p) => p.url() === "about:blank" || p.url() === "",
     );
@@ -69,14 +77,14 @@ export class PageManager {
       page = blankPage;
     } else if (existingPages.length > 0) {
       const [newPage] = await Promise.all([
-        this.context.waitForEvent("page"),
+        context.waitForEvent("page"),
         existingPages[existingPages.length - 1].evaluate(() =>
           window.open("about:blank"),
         ),
       ]);
       page = newPage;
     } else {
-      page = await this.context.newPage();
+      page = await context.newPage();
     }
 
     const entry: PageEntry = {

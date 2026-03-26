@@ -56,16 +56,10 @@ export async function startServer(
     },
   });
 
-  // Reuse the default context from launch() so we don't create an extra window.
-  // firefox.launch() creates one context with one blank page — that's our window.
-  const contexts = browser.contexts();
-  const context = contexts.length > 0 ? contexts[0] : await browser.newContext();
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, "webdriver", { get: () => false });
-  });
-
+  // Don't create a context here — PageManager creates it lazily on first page,
+  // so no blank window appears until you actually navigate somewhere.
   const pageManager = new PageManager();
-  pageManager.setContext(context);
+  pageManager.setBrowser(browser);
 
   const app = createApp(pageManager);
   const address = await app.listen({ port, host: "127.0.0.1" });
