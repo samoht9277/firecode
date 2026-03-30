@@ -27,7 +27,8 @@ export type ActionType =
   | "viewport"
   | "click-text"
   | "assert-text"
-  | "wait-idle";
+  | "wait-idle"
+  | "find-text";
 
 export interface ActionRequest {
   action: ActionType;

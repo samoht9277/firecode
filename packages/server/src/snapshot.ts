@@ -7,7 +7,14 @@ const INTERACTIVE_ROLES = new Set([
   "option", "searchbox", "spinbutton", "heading",
 ]);
 
-export async function getSnapshot(page: Page): Promise<{ snapshot: string; refMap: RefMap }> {
+interface SnapshotOptions {
+  interactiveOnly?: boolean;
+}
+
+export async function getSnapshot(
+  page: Page,
+  options: SnapshotOptions = {},
+): Promise<{ snapshot: string; refMap: RefMap }> {
   const raw = await page.locator("body").ariaSnapshot({ timeout: 10000 });
 
   let refCounter = 0;
@@ -15,8 +22,12 @@ export async function getSnapshot(page: Page): Promise<{ snapshot: string; refMa
   const unnamedCounts = new Map<string, number>();
 
   const lines = raw.split("\n");
-  const tagged = lines.map((line) => {
-    // Match named elements: "- role "name" ..."
+  const tagged: string[] = [];
+
+  for (const line of lines) {
+    let isInteractive = false;
+    let outputLine = line;
+
     const namedMatch = line.match(/^(\s*- )(\w+)\s+"([^"]*)"(.*)$/);
     if (namedMatch) {
       const [, indent, role, name, rest] = namedMatch;
@@ -24,27 +35,31 @@ export async function getSnapshot(page: Page): Promise<{ snapshot: string; refMa
         refCounter++;
         const refId = `e${refCounter}`;
         refs.set(refId, { role, name });
-        return `${indent}${role} "${name}" [ref=${refId}]${rest}`;
+        outputLine = `${indent}${role} "${name}" [ref=${refId}]${rest}`;
+        isInteractive = INTERACTIVE_ROLES.has(role);
       }
-      return line;
+    } else {
+      const unnamedMatch = line.match(/^(\s*- )(\w+)(:|$)/);
+      if (unnamedMatch) {
+        const [, indent, role, suffix] = unnamedMatch;
+        if (INTERACTIVE_ROLES.has(role)) {
+          refCounter++;
+          const refId = `e${refCounter}`;
+          const nth = (unnamedCounts.get(role) ?? 0);
+          unnamedCounts.set(role, nth + 1);
+          refs.set(refId, { role, name: "", nth });
+          outputLine = `${indent}${role} [ref=${refId}]${suffix}`;
+          isInteractive = true;
+        }
+      }
     }
 
-    // Match unnamed interactive elements: "- button:" or "- button"
-    const unnamedMatch = line.match(/^(\s*- )(\w+)(:|$)/);
-    if (unnamedMatch) {
-      const [, indent, role, suffix] = unnamedMatch;
-      if (INTERACTIVE_ROLES.has(role)) {
-        refCounter++;
-        const refId = `e${refCounter}`;
-        const nth = (unnamedCounts.get(role) ?? 0);
-        unnamedCounts.set(role, nth + 1);
-        refs.set(refId, { role, name: "", nth });
-        return `${indent}${role} [ref=${refId}]${suffix}`;
-      }
+    if (options.interactiveOnly) {
+      if (isInteractive) tagged.push(outputLine);
+    } else {
+      tagged.push(outputLine);
     }
-
-    return line;
-  });
+  }
 
   return {
     snapshot: tagged.join("\n"),

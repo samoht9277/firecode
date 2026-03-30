@@ -3,14 +3,14 @@ import { FirecodeClient } from "../client.js";
 const VALID_ACTIONS = [
   "navigate", "click", "fill", "select", "type", "wait", "hover",
   "evaluate", "scroll", "wait-for", "reload", "back", "forward",
-  "keyboard", "viewport", "click-text", "assert-text", "wait-idle",
+  "keyboard", "viewport", "click-text", "assert-text", "wait-idle", "find-text",
 ] as const;
 
 export async function browseCommand(
   pageName: string,
   action: string,
   args: string[],
-  options: { force?: boolean }
+  options: { force?: boolean; soft?: boolean }
 ): Promise<void> {
   if (!VALID_ACTIONS.includes(action as any)) {
     console.error(
@@ -26,7 +26,9 @@ export async function browseCommand(
       await client.post("/pages", { name: pageName });
     }
 
-    const fullArgs = options.force ? [...args, "--force"] : args;
+    const fullArgs = [...args];
+    if (options.force) fullArgs.push("--force");
+    if (options.soft) fullArgs.push("--soft");
 
     const result = await client.post(`/pages/${pageName}/action`, {
       action,

@@ -65,12 +65,13 @@ firecode network main
 - `firecode browse <page> forward` — go forward in history
 - `firecode browse <page> keyboard <key>` — press a key (e.g. ArrowRight, Enter, Space, Tab, Escape)
 - `firecode browse <page> viewport mobile|tablet|desktop|<width> <height>` — set viewport size (presets: mobile=375x812, tablet=768x1024, desktop=1920x1080, desktop-hd=3840x2160)
-- `firecode browse <page> click-text "<text>"` — click by visible text (no snapshot needed)
+- `firecode browse <page> click-text "<text>" [--soft]` — click by visible text (--soft won't fail if not found)
+- `firecode browse <page> find-text "<text>"` — find text on page and show element info (non-destructive)
 - `firecode browse <page> assert-text "<text>"` — check if text exists on page (fails with error if not found)
 - `firecode browse <page> wait-idle` — wait for network to be idle (no pending requests)
 
 ### Observing
-- `firecode snapshot <page>` — get ARIA accessibility tree with ref IDs
+- `firecode snapshot <page> [--interactive]` — get ARIA accessibility tree with ref IDs (--interactive for only buttons/inputs/links)
 - `firecode screenshot <page> [path]` — capture PNG screenshot
 - `firecode screenshot <page> [path] --diff <baseline>` — pixel-level comparison against baseline, outputs diff image
 - `firecode text <page>` — get visible text content (lighter than snapshot)

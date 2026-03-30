@@ -59,6 +59,7 @@ program
   )
   .argument("[args...]", "Action arguments")
   .option("--force", "Force action past overlays")
+  .option("--soft", "Don't fail if element not found (for click-text)")
   .action((page, action, args, options) => {
     browseCommand(page, action, args, options);
   });
@@ -67,7 +68,10 @@ program
   .command("snapshot")
   .description("Get AI-friendly ARIA snapshot of a page")
   .argument("<page>", "Page name")
-  .action(snapshotCommand);
+  .option("--interactive", "Only show interactive elements (buttons, inputs, links)")
+  .action((page, options) => {
+    snapshotCommand(page, options);
+  });
 
 program
   .command("screenshot")

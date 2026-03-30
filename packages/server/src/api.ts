@@ -20,6 +20,14 @@ function getFlagValue(args: string[], flag: string): string | undefined {
 export function createApp(pageManager: PageManager) {
   const app = Fastify({ logger: false });
 
+  // Return actual error messages instead of generic 500s
+  app.setErrorHandler(async (error: any, _req, reply) => {
+    const message = (error.message ?? String(error))
+      .replace(/\x1b\[[0-9;]*m/g, "") // strip ANSI
+      .split("\n")[0]; // first line only
+    reply.status(400).send({ message });
+  });
+
   app.get("/status", async () => {
     const pages = await pageManager.listPages();
     return { ok: true, pages: pages.length, pageList: pages };
@@ -34,11 +42,12 @@ export function createApp(pageManager: PageManager) {
     return await pageManager.createPage(name);
   });
 
-  app.get<{ Params: { name: string } }>(
+  app.get<{ Params: { name: string }; Querystring: { interactive?: string } }>(
     "/pages/:name/snapshot",
     async (req) => {
       const page = pageManager.getPage(req.params.name);
-      const result = await getSnapshot(page);
+      const interactiveOnly = req.query.interactive === "true";
+      const result = await getSnapshot(page, { interactiveOnly });
       pageManager.setRefMap(req.params.name, result.refMap);
       return { snapshot: result.snapshot, refCount: result.refMap.refs.size };
     },
@@ -285,7 +294,12 @@ export function createApp(pageManager: PageManager) {
         }
         case "fill": {
           const locator = resolveRef(page, refMap, args[0]);
+          // Click to focus first (helps React-controlled inputs)
+          await locator.click({ force, timeout: 5000 });
           await locator.fill(args[1] ?? "", { force });
+          // Dispatch events for React's synthetic event system
+          await locator.dispatchEvent("input", { bubbles: true });
+          await locator.dispatchEvent("change", { bubbles: true });
           return { ok: true, message: `Filled ${args[0]} with "${args[1]}"` };
         }
         case "select": {
@@ -295,6 +309,7 @@ export function createApp(pageManager: PageManager) {
         }
         case "type": {
           const locator = resolveRef(page, refMap, args[0]);
+          await locator.click({ force, timeout: 5000 });
           await locator.pressSequentially(args[1] ?? "", { delay: 50 });
           return { ok: true, message: `Typed "${args[1]}" into ${args[0]}` };
         }
@@ -320,13 +335,18 @@ export function createApp(pageManager: PageManager) {
         case "scroll": {
           const target = args[0];
           if (!target) throw new Error("scroll requires down, up, or a ref");
+          const times = parseInt(args[1] ?? "1", 10) || 1;
           if (target === "down") {
-            await page.evaluate(() => window.scrollBy(0, window.innerHeight));
-            return { ok: true, message: "Scrolled down" };
+            await page.evaluate((n) => {
+              for (let i = 0; i < n; i++) window.scrollBy(0, window.innerHeight);
+            }, times);
+            return { ok: true, message: times > 1 ? `Scrolled down ${times}x` : "Scrolled down" };
           }
           if (target === "up") {
-            await page.evaluate(() => window.scrollBy(0, -window.innerHeight));
-            return { ok: true, message: "Scrolled up" };
+            await page.evaluate((n) => {
+              for (let i = 0; i < n; i++) window.scrollBy(0, -window.innerHeight);
+            }, times);
+            return { ok: true, message: times > 1 ? `Scrolled up ${times}x` : "Scrolled up" };
           }
           const locator = resolveRef(page, refMap, target);
           await locator.scrollIntoViewIfNeeded();
@@ -387,8 +407,37 @@ export function createApp(pageManager: PageManager) {
         case "click-text": {
           const text = args[0];
           if (!text) throw new Error("click-text requires text to click");
-          await page.getByText(text, { exact: false }).first().click({ force, timeout: 5000 });
-          return { ok: true, message: `Clicked text "${text}"` };
+          const soft = hasFlag(args, "--soft");
+          const locator = page.getByText(text, { exact: false }).first();
+          try {
+            await locator.click({ force, timeout: 5000 });
+            return { ok: true, message: `Clicked text "${text}"` };
+          } catch {
+            if (soft) {
+              return { ok: true, message: `Text "${text}" not found (--soft, no error)` };
+            }
+            throw new Error(`click-text: "${text}" not found or not clickable`);
+          }
+        }
+        case "find-text": {
+          const text = args[0];
+          if (!text) throw new Error("find-text requires text to search for");
+          const matches = page.getByText(text, { exact: false });
+          const count = await matches.count();
+          if (count === 0) {
+            return { ok: true, message: `No matches for "${text}"` };
+          }
+          const results: string[] = [];
+          for (let i = 0; i < Math.min(count, 10); i++) {
+            const el = matches.nth(i);
+            const tag = await el.evaluate((e) => e.tagName.toLowerCase());
+            const visible = await el.isVisible();
+            results.push(`  ${i + 1}. <${tag}>${visible ? "" : " (hidden)"}`);
+          }
+          return {
+            ok: true,
+            message: `Found ${count} match${count > 1 ? "es" : ""} for "${text}":\n${results.join("\n")}`,
+          };
         }
         case "assert-text": {
           const text = args[0];
