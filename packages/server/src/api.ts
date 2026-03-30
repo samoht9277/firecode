@@ -430,9 +430,15 @@ export function createApp(pageManager: PageManager) {
           const results: string[] = [];
           for (let i = 0; i < Math.min(count, 10); i++) {
             const el = matches.nth(i);
-            const tag = await el.evaluate((e) => e.tagName.toLowerCase());
+            const info = await el.evaluate((e) => ({
+              tag: e.tagName.toLowerCase(),
+              role: e.getAttribute("role") ?? "",
+              text: e.textContent?.slice(0, 80)?.trim() ?? "",
+            }));
             const visible = await el.isVisible();
-            results.push(`  ${i + 1}. <${tag}>${visible ? "" : " (hidden)"}`);
+            const roleStr = info.role ? ` role="${info.role}"` : "";
+            const visStr = visible ? "" : " (hidden)";
+            results.push(`  ${i + 1}. <${info.tag}${roleStr}>${visStr} — "${info.text}"`);
           }
           return {
             ok: true,
