@@ -268,6 +268,41 @@ export function createApp(pageManager: PageManager) {
     },
   );
 
+  // Run multiple actions in sequence
+  app.post<{
+    Params: { name: string };
+    Body: { commands: string; soft?: boolean };
+  }>("/pages/:name/run", async (req) => {
+    const commands = req.body.commands.split(";").map((s) => s.trim()).filter(Boolean);
+    const soft = req.body.soft ?? true;
+    const results: string[] = [];
+
+    // Ensure page exists
+    await pageManager.createPage(req.params.name);
+
+    for (const cmd of commands) {
+      const parts = cmd.match(/(?:[^\s"]+|"[^"]*")+/g) ?? [];
+      const action = parts[0];
+      const args = parts.slice(1).map((a) => a.replace(/^"|"$/g, ""));
+
+      const res = await app.inject({
+        method: "POST",
+        url: `/pages/${req.params.name}/action`,
+        payload: { action, args },
+      });
+      const body = JSON.parse(res.body);
+
+      if (res.statusCode >= 400) {
+        results.push(`FAIL: ${action} — ${body.message}`);
+        if (!soft) break;
+      } else {
+        results.push(body.message);
+      }
+    }
+
+    return { ok: true, results };
+  });
+
   // Execute action
   app.post<{ Params: { name: string }; Body: ActionRequest }>(
     "/pages/:name/action",

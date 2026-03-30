@@ -72,10 +72,20 @@ export function resolveRef(
   refMap: RefMap,
   refId: string
 ): Locator {
+  if (refMap.timestamp === 0) {
+    throw new Error(
+      `No snapshot taken yet. Run "firecode snapshot" first to get ref IDs.`
+    );
+  }
+
+  const age = Date.now() - refMap.timestamp;
   const entry = refMap.refs.get(refId);
   if (!entry) {
+    const staleHint = age > 30000
+      ? ` Snapshot is ${Math.round(age / 1000)}s old, page may have changed.`
+      : "";
     throw new Error(
-      `Ref "${refId}" not found. Available refs: ${[...refMap.refs.keys()].join(", ")}. Re-run "firecode snapshot" to refresh.`
+      `Ref "${refId}" not found. Available refs: ${[...refMap.refs.keys()].join(", ")}.${staleHint} Re-run "firecode snapshot" to refresh.`
     );
   }
 

@@ -18,6 +18,7 @@ import {
   recordSaveCommand,
   replayCommand,
 } from "./commands/record.js";
+import { runCommand } from "./commands/run.js";
 
 const program = new Command();
 
@@ -122,6 +123,16 @@ program
   .option("--clear", "Clear storage (both by default, or just session with --session)")
   .action((page, options) => {
     storageCommand(page, options);
+  });
+
+program
+  .command("run")
+  .description("Run multiple actions in sequence (semicolon-separated)")
+  .argument("<page>", "Page name")
+  .argument("<commands>", 'Actions separated by semicolons, e.g. "click-text Aceptar --soft; click-text Omitir --soft"')
+  .option("--strict", "Stop on first failure (default: continue on failure)")
+  .action((page, commands, options) => {
+    runCommand(page, commands, options);
   });
 
 program
