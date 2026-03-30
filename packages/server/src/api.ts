@@ -1,11 +1,22 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import Fastify from "fastify";
 import pixelmatch from "pixelmatch";
 import { PNG } from "pngjs";
 import { PageManager } from "./pages.js";
 import { getSnapshot, resolveRef } from "./snapshot.js";
 import type { ActionRequest } from "./types.js";
+
+const ALLOWED_DIRS = ["/tmp", process.env.HOME + "/.firecode", process.cwd()];
+
+function validatePath(filePath: string): string {
+  const resolved = resolve(filePath);
+  const allowed = ALLOWED_DIRS.some((dir) => dir && resolved.startsWith(resolve(dir)));
+  if (!allowed) {
+    throw new Error(`Path "${filePath}" is outside allowed directories (${ALLOWED_DIRS.join(", ")})`);
+  }
+  return resolved;
+}
 
 function hasFlag(args: string[], flag: string): boolean {
   return args.includes(flag);
@@ -17,10 +28,17 @@ function getFlagValue(args: string[], flag: string): string | undefined {
   return args[idx + 1];
 }
 
-export function createApp(pageManager: PageManager) {
+export function createApp(pageManager: PageManager, authToken: string) {
   const app = Fastify({ logger: false });
 
-  // Return actual error messages instead of generic 500s
+  app.addHook("onRequest", async (req, reply) => {
+    if (req.url === "/status") return;
+    const header = req.headers.authorization;
+    if (header !== `Bearer ${authToken}`) {
+      reply.status(401).send({ message: "Unauthorized" });
+    }
+  });
+
   app.setErrorHandler(async (error: any, _req, reply) => {
     const message = (error.message ?? String(error))
       .replace(/\x1b\[[0-9;]*m/g, "") // strip ANSI
@@ -84,7 +102,6 @@ export function createApp(pageManager: PageManager) {
     return { logs };
   });
 
-  // Cookies
   app.get<{ Params: { name: string } }>(
     "/pages/:name/cookies",
     async (req) => {
@@ -94,7 +111,6 @@ export function createApp(pageManager: PageManager) {
     },
   );
 
-  // Storage (localStorage + sessionStorage)
   app.get<{ Params: { name: string }; Querystring: { type?: string } }>(
     "/pages/:name/storage",
     async (req) => {
@@ -113,7 +129,6 @@ export function createApp(pageManager: PageManager) {
     },
   );
 
-  // Clear storage
   app.post<{ Params: { name: string }; Body: { type?: string } }>(
     "/pages/:name/storage/clear",
     async (req) => {
@@ -127,18 +142,18 @@ export function createApp(pageManager: PageManager) {
     },
   );
 
-  // Screenshot with pixel-level diff
   app.post<{
     Params: { name: string };
     Body: { path?: string; diff?: string };
   }>("/pages/:name/screenshot", async (req) => {
     const page = pageManager.getPage(req.params.name);
-    const screenshotPath =
-      req.body?.path ?? `/tmp/firecode-screenshot-${Date.now()}.png`;
+    const screenshotPath = validatePath(
+      req.body?.path ?? `/tmp/firecode-screenshot-${Date.now()}.png`,
+    );
     await page.screenshot({ path: screenshotPath, fullPage: true });
 
     if (req.body?.diff) {
-      const baselinePath = req.body.diff;
+      const baselinePath = validatePath(req.body.diff);
       const [baselineBuf, currentBuf] = await Promise.all([
         readFile(baselinePath),
         readFile(screenshotPath),
@@ -199,13 +214,13 @@ export function createApp(pageManager: PageManager) {
     return { ok: true, path: screenshotPath };
   });
 
-  // PDF
   app.post<{ Params: { name: string }; Body: { path?: string } }>(
     "/pages/:name/pdf",
     async (req) => {
       const page = pageManager.getPage(req.params.name);
-      const pdfPath =
-        req.body?.path ?? `/tmp/firecode-pdf-${Date.now()}.pdf`;
+      const pdfPath = validatePath(
+        req.body?.path ?? `/tmp/firecode-pdf-${Date.now()}.pdf`,
+      );
       await mkdir(dirname(pdfPath), { recursive: true });
       try {
         await page.pdf({ path: pdfPath, format: "A4" });
@@ -218,7 +233,6 @@ export function createApp(pageManager: PageManager) {
     },
   );
 
-  // Recording endpoints
   app.post<{ Params: { name: string } }>(
     "/pages/:name/record/start",
     async (req) => {
@@ -239,7 +253,7 @@ export function createApp(pageManager: PageManager) {
     "/pages/:name/record/save",
     async (req) => {
       const recording = pageManager.getRecording(req.params.name);
-      const savePath = req.body.path;
+      const savePath = validatePath(req.body.path);
       await writeFile(savePath, JSON.stringify(recording, null, 2));
       return { ok: true, path: savePath, steps: recording.length };
     },
@@ -248,7 +262,8 @@ export function createApp(pageManager: PageManager) {
   app.post<{ Params: { name: string }; Body: { path: string } }>(
     "/pages/:name/replay",
     async (req) => {
-      const raw = await readFile(req.body.path, "utf-8");
+      const replayPath = validatePath(req.body.path);
+      const raw = await readFile(replayPath, "utf-8");
       const steps: Array<{ action: string; args: string[] }> = JSON.parse(raw);
       const page = pageManager.getPage(req.params.name);
       const results: string[] = [];
@@ -268,7 +283,6 @@ export function createApp(pageManager: PageManager) {
     },
   );
 
-  // Run multiple actions in sequence
   app.post<{
     Params: { name: string };
     Body: { commands: string; soft?: boolean };
@@ -277,7 +291,6 @@ export function createApp(pageManager: PageManager) {
     const soft = req.body.soft ?? true;
     const results: string[] = [];
 
-    // Ensure page exists
     await pageManager.createPage(req.params.name);
 
     for (const cmd of commands) {
@@ -303,7 +316,6 @@ export function createApp(pageManager: PageManager) {
     return { ok: true, results };
   });
 
-  // Execute action
   app.post<{ Params: { name: string }; Body: ActionRequest }>(
     "/pages/:name/action",
     async (req) => {

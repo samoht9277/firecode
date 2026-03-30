@@ -56,7 +56,7 @@ program
   .argument("<page>", "Page name")
   .argument(
     "<action>",
-    "Action: navigate, click, fill, select, type, wait, hover, evaluate, scroll, wait-for, reload, back, forward, keyboard, viewport, click-text, assert-text, wait-idle",
+    "Action: navigate, click, fill, select, type, wait, hover, evaluate, scroll, wait-for, reload, back, forward, keyboard, viewport, click-text, find-text, assert-text, wait-idle",
   )
   .argument("[args...]", "Action arguments")
   .option("--force", "Force action past overlays")

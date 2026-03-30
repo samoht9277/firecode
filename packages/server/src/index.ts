@@ -1,5 +1,6 @@
 import { firefox } from "playwright";
 import { mkdir, writeFile, rm, readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { createApp } from "./api.js";
 import { PageManager } from "./pages.js";
 import { SERVER_STATE_PATH, FIRECODE_DIR } from "./types.js";
@@ -61,7 +62,8 @@ export async function startServer(
   const pageManager = new PageManager();
   pageManager.setBrowser(browser);
 
-  const app = createApp(pageManager);
+  const authToken = randomUUID();
+  const app = createApp(pageManager, authToken);
   const address = await app.listen({ port, host: "127.0.0.1" });
   const httpPort = parseInt(new URL(address).port, 10);
   console.log(`HTTP API listening on ${address}`);
@@ -70,6 +72,7 @@ export async function startServer(
   const state: ServerState = {
     httpPort,
     pid: process.pid,
+    authToken,
   };
   await writeFile(SERVER_STATE_PATH, JSON.stringify(state, null, 2));
   console.log(`State written to ${SERVER_STATE_PATH}`);

@@ -6,13 +6,16 @@ const SERVER_STATE_PATH = `${process.env.HOME}/.firecode/server.json`;
 interface ServerState {
   httpPort: number;
   pid: number;
+  authToken: string;
 }
 
 export class FirecodeClient {
   private baseUrl: string;
+  private authToken: string;
 
-  constructor(port: number) {
+  constructor(port: number, authToken: string) {
     this.baseUrl = `http://127.0.0.1:${port}`;
+    this.authToken = authToken;
   }
 
   static async connect(): Promise<FirecodeClient> {
@@ -40,7 +43,7 @@ export class FirecodeClient {
     }
 
     const state: ServerState = JSON.parse(raw);
-    const client = new FirecodeClient(state.httpPort);
+    const client = new FirecodeClient(state.httpPort, state.authToken);
     try {
       await client.get("/status");
     } catch {
@@ -53,7 +56,9 @@ export class FirecodeClient {
   }
 
   private async request(path: string, init?: RequestInit): Promise<any> {
-    const res = await fetch(`${this.baseUrl}${path}`, init);
+    const headers = new Headers(init?.headers);
+    headers.set("Authorization", `Bearer ${this.authToken}`);
+    const res = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.message ?? `HTTP ${res.status}`);

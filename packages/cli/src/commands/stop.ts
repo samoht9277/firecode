@@ -13,10 +13,10 @@ export async function stopCommand(): Promise<void> {
 
   const state = JSON.parse(raw);
 
-  // Try graceful shutdown first
   try {
     const res = await fetch(`http://127.0.0.1:${state.httpPort}/shutdown`, {
       method: "POST",
+      headers: { Authorization: `Bearer ${state.authToken}` },
       signal: AbortSignal.timeout(2000),
     });
     if (res.ok) {

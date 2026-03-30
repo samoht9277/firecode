@@ -1,6 +1,7 @@
 export interface ServerState {
   httpPort: number;
   pid: number;
+  authToken: string;
 }
 
 export interface PageInfo {
