@@ -60,12 +60,16 @@ export function createApp(pageManager: PageManager, authToken: string) {
     return await pageManager.createPage(name);
   });
 
-  app.get<{ Params: { name: string }; Querystring: { interactive?: string } }>(
+  app.get<{
+    Params: { name: string };
+    Querystring: { interactive?: string; frame?: string };
+  }>(
     "/pages/:name/snapshot",
     async (req) => {
       const page = pageManager.getPage(req.params.name);
       const interactiveOnly = req.query.interactive === "true";
-      const result = await getSnapshot(page, { interactiveOnly });
+      const frame = req.query.frame || undefined;
+      const result = await getSnapshot(page, { interactiveOnly, frame });
       pageManager.setRefMap(req.params.name, result.refMap);
       return { snapshot: result.snapshot, refCount: result.refMap.refs.size };
     },
@@ -323,6 +327,8 @@ export function createApp(pageManager: PageManager, authToken: string) {
       const page = pageManager.getPage(req.params.name);
       const refMap = pageManager.getRefMap(req.params.name);
       const force = hasFlag(args, "--force");
+      const waitIdle = hasFlag(args, "--wait-idle");
+      const frame = getFlagValue(args, "--frame");
 
       // Record the action if recording is active
       pageManager.recordAction(req.params.name, action, args);
@@ -335,12 +341,15 @@ export function createApp(pageManager: PageManager, authToken: string) {
           return { ok: true, message: `Navigated to ${url}` };
         }
         case "click": {
-          const locator = resolveRef(page, refMap, args[0]);
+          const locator = resolveRef(page, refMap, args[0], frame);
           await locator.click({ force, timeout: 5000 });
-          return { ok: true, message: `Clicked ${args[0]}` };
+          if (waitIdle) {
+            await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+          }
+          return { ok: true, message: `Clicked ${args[0]}${waitIdle ? " (idle)" : ""}` };
         }
         case "fill": {
-          const locator = resolveRef(page, refMap, args[0]);
+          const locator = resolveRef(page, refMap, args[0], frame);
           // Click to focus first (helps React-controlled inputs)
           await locator.click({ force, timeout: 5000 });
           await locator.fill(args[1] ?? "", { force });
@@ -350,18 +359,18 @@ export function createApp(pageManager: PageManager, authToken: string) {
           return { ok: true, message: `Filled ${args[0]} with "${args[1]}"` };
         }
         case "select": {
-          const locator = resolveRef(page, refMap, args[0]);
+          const locator = resolveRef(page, refMap, args[0], frame);
           await locator.selectOption(args[1] ?? "", { force });
           return { ok: true, message: `Selected "${args[1]}" on ${args[0]}` };
         }
         case "type": {
-          const locator = resolveRef(page, refMap, args[0]);
+          const locator = resolveRef(page, refMap, args[0], frame);
           await locator.click({ force, timeout: 5000 });
           await locator.pressSequentially(args[1] ?? "", { delay: 50 });
           return { ok: true, message: `Typed "${args[1]}" into ${args[0]}` };
         }
         case "hover": {
-          const locator = resolveRef(page, refMap, args[0]);
+          const locator = resolveRef(page, refMap, args[0], frame);
           await locator.hover({ force });
           return { ok: true, message: `Hovered ${args[0]}` };
         }
@@ -376,6 +385,7 @@ export function createApp(pageManager: PageManager, authToken: string) {
           const result = await page.evaluate(js);
           return {
             ok: true,
+            result,
             message: JSON.stringify(result, null, 2) ?? "undefined",
           };
         }
@@ -395,7 +405,7 @@ export function createApp(pageManager: PageManager, authToken: string) {
             }, times);
             return { ok: true, message: times > 1 ? `Scrolled up ${times}x` : "Scrolled up" };
           }
-          const locator = resolveRef(page, refMap, target);
+          const locator = resolveRef(page, refMap, target, frame);
           await locator.scrollIntoViewIfNeeded();
           return { ok: true, message: `Scrolled to ${target}` };
         }
@@ -455,7 +465,8 @@ export function createApp(pageManager: PageManager, authToken: string) {
           const text = args[0];
           if (!text) throw new Error("click-text requires text to click");
           const soft = hasFlag(args, "--soft");
-          const locator = page.getByText(text, { exact: false }).first();
+          const root = frame ? page.frameLocator(frame) : page;
+          const locator = root.getByText(text, { exact: false }).first();
           try {
             await locator.click({ force, timeout: 5000 });
             return { ok: true, message: `Clicked text "${text}"` };
@@ -469,7 +480,8 @@ export function createApp(pageManager: PageManager, authToken: string) {
         case "find-text": {
           const text = args[0];
           if (!text) throw new Error("find-text requires text to search for");
-          const matches = page.getByText(text, { exact: false });
+          const root = frame ? page.frameLocator(frame) : page;
+          const matches = root.getByText(text, { exact: false });
           const count = await matches.count();
           if (count === 0) {
             return { ok: true, message: `No matches for "${text}"` };
@@ -496,8 +508,9 @@ export function createApp(pageManager: PageManager, authToken: string) {
           const text = args[0];
           if (!text) throw new Error("assert-text requires text to check");
           const timeout = parseInt(getFlagValue(args, "--timeout") ?? "5000", 10);
+          const root = frame ? page.frameLocator(frame) : page;
           try {
-            await page.getByText(text).waitFor({ timeout });
+            await root.getByText(text).waitFor({ timeout });
             return { ok: true, message: `PASS: "${text}" found on page` };
           } catch {
             throw new Error(`FAIL: "${text}" not found on page within ${timeout}ms`);

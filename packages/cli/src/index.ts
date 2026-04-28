@@ -61,6 +61,8 @@ program
   .argument("[args...]", "Action arguments")
   .option("--force", "Force action past overlays")
   .option("--soft", "Don't fail if element not found (for click-text)")
+  .option("--wait-idle", "Wait for network idle after click")
+  .option("--frame <selector>", "Operate inside an iframe (CSS selector)")
   .action((page, action, args, options) => {
     browseCommand(page, action, args, options);
   });
@@ -70,6 +72,7 @@ program
   .description("Get AI-friendly ARIA snapshot of a page")
   .argument("<page>", "Page name")
   .option("--interactive", "Only show interactive elements (buttons, inputs, links)")
+  .option("--frame <selector>", "Snapshot inside an iframe (CSS selector)")
   .action((page, options) => {
     snapshotCommand(page, options);
   });

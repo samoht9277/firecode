@@ -1,4 +1,4 @@
-import type { Page, Locator } from "playwright";
+import type { Page, Locator, FrameLocator } from "playwright";
 import type { RefMap } from "./types.js";
 
 const INTERACTIVE_ROLES = new Set([
@@ -9,13 +9,17 @@ const INTERACTIVE_ROLES = new Set([
 
 interface SnapshotOptions {
   interactiveOnly?: boolean;
+  frame?: string;
 }
 
 export async function getSnapshot(
   page: Page,
   options: SnapshotOptions = {},
 ): Promise<{ snapshot: string; refMap: RefMap }> {
-  const raw = await page.locator("body").ariaSnapshot({ timeout: 10000 });
+  const root = options.frame
+    ? page.frameLocator(options.frame).locator("body")
+    : page.locator("body");
+  const raw = await root.ariaSnapshot({ timeout: 10000 });
 
   let refCounter = 0;
   const refs = new Map<string, { role: string; name: string; nth?: number }>();
@@ -63,14 +67,15 @@ export async function getSnapshot(
 
   return {
     snapshot: tagged.join("\n"),
-    refMap: { refs, timestamp: Date.now() },
+    refMap: { refs, timestamp: Date.now(), frame: options.frame },
   };
 }
 
 export function resolveRef(
   page: Page,
   refMap: RefMap,
-  refId: string
+  refId: string,
+  frameOverride?: string,
 ): Locator {
   if (refMap.timestamp === 0) {
     throw new Error(
@@ -89,8 +94,11 @@ export function resolveRef(
     );
   }
 
+  const frame = frameOverride ?? refMap.frame;
+  const root: Page | FrameLocator = frame ? page.frameLocator(frame) : page;
+
   if (entry.name) {
-    return page.getByRole(entry.role as any, { name: entry.name });
+    return root.getByRole(entry.role as any, { name: entry.name });
   }
-  return page.getByRole(entry.role as any).nth(entry.nth ?? 0);
+  return root.getByRole(entry.role as any).nth(entry.nth ?? 0);
 }

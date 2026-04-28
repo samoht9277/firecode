@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { execFile } from "node:child_process";
 
 const SERVER_STATE_PATH = `${process.env.HOME}/.firecode/server.json`;
@@ -19,10 +19,21 @@ export class FirecodeClient {
   }
 
   static async connect(): Promise<FirecodeClient> {
-    let raw!: string;
+    let raw: string | undefined;
     try {
       raw = await readFile(SERVER_STATE_PATH, "utf-8");
-    } catch {
+
+      // Check if PID is alive — if not, clean up stale state file
+      const state: ServerState = JSON.parse(raw);
+      try {
+        process.kill(state.pid, 0);
+      } catch {
+        await rm(SERVER_STATE_PATH).catch(() => {});
+        raw = undefined;
+      }
+    } catch {}
+
+    if (!raw) {
       console.error("Firecode server not running, starting in headless mode...");
       const child = execFile(
         process.argv[0],
