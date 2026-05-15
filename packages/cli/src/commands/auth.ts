@@ -2,7 +2,6 @@ import { execFile } from "node:child_process";
 import { readdir, copyFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { promisify } from "node:util";
-import { createInterface } from "node:readline";
 import { join } from "node:path";
 import { homedir, tmpdir, platform } from "node:os";
 import { FirecodeClient } from "../client.js";
@@ -59,7 +58,6 @@ async function readCookies(
     throw new Error(`Firefox cookies database not found at ${dbPath}`);
   }
 
-  // Copy DB to /tmp because Firefox holds a lock on the original
   const tmpDb = join(tmpdir(), `firecode-cookies-${Date.now()}.sqlite`);
   await copyFile(dbPath, tmpDb);
 
@@ -87,14 +85,51 @@ function mapSameSite(n: number): "Strict" | "Lax" | "None" {
   return "None";
 }
 
-async function prompt(question: string): Promise<string> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer);
-    });
-  });
+async function askApproval(
+  domain: string,
+  count: number,
+  cookieNames: string[],
+): Promise<boolean> {
+  const namesList = cookieNames.slice(0, 8).join(", ");
+  const more = cookieNames.length > 8 ? `, +${cookieNames.length - 8} more` : "";
+  const message = `firecode wants to import ${count} cookies for "${domain}":\n\n${namesList}${more}\n\nApprove?`;
+
+  if (platform() === "darwin") {
+    const script = `display dialog "${message.replace(/"/g, '\\"').replace(/\n/g, "\\n")}" buttons {"Deny", "Allow"} default button "Allow" cancel button "Deny" with title "Firecode Cookie Import" with icon caution`;
+    try {
+      const { stdout } = await exec("osascript", ["-e", script]);
+      return stdout.includes("Allow");
+    } catch {
+      return false;
+    }
+  }
+
+  if (platform() === "linux") {
+    try {
+      await exec("zenity", [
+        "--question",
+        "--title=Firecode Cookie Import",
+        `--text=${message}`,
+        "--ok-label=Allow",
+        "--cancel-label=Deny",
+      ]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  if (platform() === "win32") {
+    const script = `[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); $result = [System.Windows.Forms.MessageBox]::Show('${message.replace(/'/g, "''")}', 'Firecode Cookie Import', 'YesNo', 'Warning'); if ($result -eq 'Yes') { exit 0 } else { exit 1 }`;
+    try {
+      await exec("powershell", ["-Command", script]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  throw new Error(`Unsupported platform for approval dialog: ${platform()}`);
 }
 
 export async function authCommand(
@@ -113,22 +148,15 @@ export async function authCommand(
       return;
     }
 
-    const names = rawCookies
-      .slice(0, 5)
-      .map((c) => c.name)
-      .join(", ");
-    const more =
-      rawCookies.length > 5 ? `, +${rawCookies.length - 5} more` : "";
-    console.log(`\nFound ${rawCookies.length} cookies for "${domain}":`);
-    console.log(`  ${names}${more}`);
+    const cookieNames = rawCookies.map((c) => c.name);
+    console.log(`Found ${rawCookies.length} cookies for "${domain}".`);
 
     if (!options.yes) {
-      const answer = await prompt(
-        `\nImport these cookies into firecode? (y/N) `,
-      );
-      if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
-        console.log("Cancelled.");
-        return;
+      console.log("Waiting for user approval (check your screen)...");
+      const approved = await askApproval(domain, rawCookies.length, cookieNames);
+      if (!approved) {
+        console.log("Cancelled by user.");
+        process.exit(1);
       }
     }
 
