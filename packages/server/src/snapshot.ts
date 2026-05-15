@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Page, Locator, FrameLocator } from "playwright";
 import type { RefMap } from "./types.js";
 
@@ -12,6 +13,15 @@ interface SnapshotOptions {
   frame?: string;
 }
 
+function refIdFor(role: string, name: string, nth: number): string {
+  // Stable 4-char hex from the element identity. Same role+name+nth → same ref.
+  const hash = createHash("sha1")
+    .update(`${role}\0${name}\0${nth}`)
+    .digest("hex")
+    .slice(0, 4);
+  return `e${hash}`;
+}
+
 export async function getSnapshot(
   page: Page,
   options: SnapshotOptions = {},
@@ -21,9 +31,8 @@ export async function getSnapshot(
     : page.locator("body");
   const raw = await root.ariaSnapshot({ timeout: 10000 });
 
-  let refCounter = 0;
-  const refs = new Map<string, { role: string; name: string; nth?: number }>();
-  const unnamedCounts = new Map<string, number>();
+  const refs = new Map<string, { role: string; name: string; nth: number }>();
+  const occurrences = new Map<string, number>(); // role|name -> count seen so far
 
   const lines = raw.split("\n");
   const tagged: string[] = [];
@@ -31,26 +40,33 @@ export async function getSnapshot(
   for (const line of lines) {
     let isInteractive = false;
     let outputLine = line;
+    let role: string | undefined;
+    let name = "";
 
     const namedMatch = line.match(/^(\s*- )(\w+)\s+"([^"]*)"(.*)$/);
     if (namedMatch) {
-      const [, indent, role, name, rest] = namedMatch;
+      const [, indent, r, n, rest] = namedMatch;
+      role = r;
+      name = n;
       if (INTERACTIVE_ROLES.has(role) || name) {
-        refCounter++;
-        const refId = `e${refCounter}`;
-        refs.set(refId, { role, name });
+        const key = `${role}|${name}`;
+        const nth = occurrences.get(key) ?? 0;
+        occurrences.set(key, nth + 1);
+        const refId = refIdFor(role, name, nth);
+        refs.set(refId, { role, name, nth });
         outputLine = `${indent}${role} "${name}" [ref=${refId}]${rest}`;
         isInteractive = INTERACTIVE_ROLES.has(role);
       }
     } else {
       const unnamedMatch = line.match(/^(\s*- )(\w+)(:|$)/);
       if (unnamedMatch) {
-        const [, indent, role, suffix] = unnamedMatch;
+        const [, indent, r, suffix] = unnamedMatch;
+        role = r;
         if (INTERACTIVE_ROLES.has(role)) {
-          refCounter++;
-          const refId = `e${refCounter}`;
-          const nth = (unnamedCounts.get(role) ?? 0);
-          unnamedCounts.set(role, nth + 1);
+          const key = `${role}|`;
+          const nth = occurrences.get(key) ?? 0;
+          occurrences.set(key, nth + 1);
+          const refId = refIdFor(role, "", nth);
           refs.set(refId, { role, name: "", nth });
           outputLine = `${indent}${role} [ref=${refId}]${suffix}`;
           isInteractive = true;
@@ -90,7 +106,7 @@ export function resolveRef(
       ? ` Snapshot is ${Math.round(age / 1000)}s old, page may have changed.`
       : "";
     throw new Error(
-      `Ref "${refId}" not found. Available refs: ${[...refMap.refs.keys()].join(", ")}.${staleHint} Re-run "firecode snapshot" to refresh.`
+      `Ref "${refId}" not found. Available refs: ${[...refMap.refs.keys()].slice(0, 20).join(", ")}.${staleHint} Re-run "firecode snapshot" to refresh.`
     );
   }
 
@@ -98,7 +114,7 @@ export function resolveRef(
   const root: Page | FrameLocator = frame ? page.frameLocator(frame) : page;
 
   if (entry.name) {
-    return root.getByRole(entry.role as any, { name: entry.name });
+    return root.getByRole(entry.role as any, { name: entry.name }).nth(entry.nth ?? 0);
   }
   return root.getByRole(entry.role as any).nth(entry.nth ?? 0);
 }

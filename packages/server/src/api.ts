@@ -354,11 +354,24 @@ export function createApp(pageManager: PageManager, authToken: string) {
         }
         case "click": {
           const locator = resolveRef(page, refMap, args[0], frame);
-          await locator.click({ force, timeout: 5000 });
+          let fallback = false;
+          try {
+            await locator.click({ force, timeout: 3000 });
+          } catch (err: any) {
+            if (err.message?.includes("Timeout")) {
+              // Element exists but Playwright's actionability check timed out.
+              // Just fire the DOM click directly.
+              await locator.evaluate((el: any) => el.click?.());
+              fallback = true;
+            } else {
+              throw err;
+            }
+          }
           if (waitIdle) {
             await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
           }
-          return { ok: true, message: `Clicked ${args[0]}${waitIdle ? " (idle)" : ""}` };
+          const tag = fallback ? " (forced)" : waitIdle ? " (idle)" : "";
+          return { ok: true, message: `Clicked ${args[0]}${tag}` };
         }
         case "fill": {
           const locator = resolveRef(page, refMap, args[0], frame);
@@ -394,7 +407,10 @@ export function createApp(pageManager: PageManager, authToken: string) {
         case "evaluate": {
           const js = args[0];
           if (!js) throw new Error("evaluate requires a JS expression");
-          const result = await page.evaluate(js);
+          // If the code has a return or multiple statements, wrap it in an async IIFE
+          const looksLikeBlock = /\breturn\b/.test(js) || /;\s*\S/.test(js);
+          const code = looksLikeBlock ? `(async () => { ${js} })()` : js;
+          const result = await page.evaluate(code);
           return {
             ok: true,
             result,
@@ -478,16 +494,41 @@ export function createApp(pageManager: PageManager, authToken: string) {
           if (!text) throw new Error("click-text requires text to click");
           const soft = hasFlag(args, "--soft");
           const root = frame ? page.frameLocator(frame) : page;
-          const locator = root.getByText(text, { exact: false }).first();
-          try {
-            await locator.click({ force, timeout: 5000 });
-            return { ok: true, message: `Clicked text "${text}"` };
-          } catch {
-            if (soft) {
-              return { ok: true, message: `Text "${text}" not found (--soft, no error)` };
+
+          // Try strategies in order: getByText → button by name → link by name → menuitem by name → closest clickable ancestor
+          const strategies = [
+            () => root.getByText(text, { exact: false }).first(),
+            () => root.getByRole("button", { name: text, exact: false }).first(),
+            () => root.getByRole("link", { name: text, exact: false }).first(),
+            () => root.getByRole("menuitem", { name: text, exact: false }).first(),
+          ];
+
+          let lastError: any;
+          for (const strategy of strategies) {
+            try {
+              const locator = strategy();
+              await locator.click({ force, timeout: 2000 });
+              return { ok: true, message: `Clicked text "${text}"` };
+            } catch (err) {
+              lastError = err;
             }
-            throw new Error(`click-text: "${text}" not found or not clickable`);
           }
+
+          // Last resort: find text via getByText and click closest button/link/role ancestor
+          try {
+            const textLocator = root.getByText(text, { exact: false }).first();
+            await textLocator.evaluate((el: any) => {
+              const clickable = el.closest("button, a, [role='button'], [role='link'], [role='menuitem'], [onclick]");
+              if (clickable) clickable.click();
+              else el.click?.();
+            });
+            return { ok: true, message: `Clicked text "${text}" (via ancestor)` };
+          } catch {}
+
+          if (soft) {
+            return { ok: true, message: `Text "${text}" not found (--soft, no error)` };
+          }
+          throw new Error(`click-text: "${text}" not found or not clickable`);
         }
         case "find-text": {
           const text = args[0];

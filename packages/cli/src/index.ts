@@ -9,7 +9,7 @@ import { textCommand } from "./commands/text.js";
 import { consoleCommand } from "./commands/console.js";
 import { networkCommand } from "./commands/network.js";
 import { testCommand } from "./commands/test.js";
-import { cookiesCommand } from "./commands/cookies.js";
+import { cookiesCommand, cookiesSetCommand } from "./commands/cookies.js";
 import { storageCommand } from "./commands/storage.js";
 import { pdfCommand } from "./commands/pdf.js";
 import {
@@ -113,11 +113,31 @@ program
     networkCommand(page, options);
   });
 
-program
+const cookies = program
   .command("cookies")
-  .description("Show cookies for a page")
+  .description("Show or set cookies for a page");
+
+cookies
+  .command("show", { isDefault: true })
+  .description("Show cookies (default)")
   .argument("<page>", "Page name")
   .action(cookiesCommand);
+
+cookies
+  .command("set")
+  .description("Set a cookie on a page")
+  .argument("<page>", "Page name")
+  .argument("<name>", "Cookie name")
+  .argument("<value>", "Cookie value")
+  .requiredOption("--domain <domain>", "Cookie domain (e.g. example.com)")
+  .option("--path <path>", "Cookie path", "/")
+  .option("--expires <seconds>", "Unix timestamp in seconds (-1 for session)")
+  .option("--http-only", "Set HttpOnly flag")
+  .option("--secure", "Set Secure flag")
+  .option("--same-site <value>", "Strict, Lax, or None", "Lax")
+  .action((page, name, value, options) => {
+    cookiesSetCommand(page, name, value, options);
+  });
 
 program
   .command("auth")

@@ -56,7 +56,7 @@ firecode network main
 - `firecode browse <page> select <ref> <value> [--force]` — select a dropdown option
 - `firecode browse <page> hover <ref> [--force]` — hover over an element
 - `firecode browse <page> wait <ms>` — wait for a duration
-- `firecode browse <page> evaluate "<js>"` — run JavaScript and get result
+- `firecode browse <page> evaluate "<js>"` — run JavaScript and get result. Supports `return` for multi-statement code (auto-wrapped in async IIFE), e.g. `evaluate "let x = 1; return x + 2"`.
 - `firecode browse <page> scroll down|up|<ref>` — scroll page or to an element
 - `firecode browse <page> wait-for "<text>"` — wait for text to appear
 - `firecode browse <page> wait-for --selector "<css>" [--timeout ms]` — wait for selector
@@ -77,7 +77,8 @@ firecode network main
 - `firecode text <page>` — get visible text content (lighter than snapshot)
 - `firecode console <page> [--clear]` — show browser console logs
 - `firecode network <page> [--all] [--clear]` — show failed network requests
-- `firecode cookies <page>` — show cookies for the page
+- `firecode cookies show <page>` — show cookies for the page (or just `firecode cookies <page>`)
+- `firecode cookies set <page> <name> <value> --domain <domain> [--path /] [--expires N] [--http-only] [--secure] [--same-site Lax]` — set a cookie manually
 - `firecode storage <page> [--session]` — show localStorage (or sessionStorage with --session)
 - `firecode storage <page> --clear` — clear all storage (add --session to clear only sessionStorage)
 - `firecode pdf <page> [path]` — export page as PDF (headless mode only)
@@ -116,7 +117,7 @@ firecode network main
 Named elements: `firecode browse main click e6` (clicks "Save")
 Unnamed elements: `firecode browse main click e7` (clicks the unnamed button)
 
-**Important:** Refs are tied to the last snapshot. If the page changes, take a new snapshot.
+**Important:** Refs are content-hashed (e.g. `e17e5`, `e340a`) and stable across snapshots — same element keeps the same ref. But refs are still per-snapshot session: you need at least one snapshot before refs can resolve, and if an element is removed/replaced the ref becomes invalid.
 
 ## Debugging Workflow
 
