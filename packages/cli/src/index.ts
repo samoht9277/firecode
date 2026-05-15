@@ -19,6 +19,7 @@ import {
   replayCommand,
 } from "./commands/record.js";
 import { runCommand } from "./commands/run.js";
+import { authCommand } from "./commands/auth.js";
 
 const program = new Command();
 
@@ -117,6 +118,18 @@ program
   .description("Show cookies for a page")
   .argument("<page>", "Page name")
   .action(cookiesCommand);
+
+program
+  .command("auth")
+  .description(
+    "Import cookies from your real Firefox into firecode (prompts for approval)",
+  )
+  .argument("<page>", "Page name")
+  .argument("<domain>", "Domain to import cookies for (e.g. example.com)")
+  .option("-y, --yes", "Skip the approval prompt")
+  .action((page, domain, options) => {
+    authCommand(page, domain, options);
+  });
 
 program
   .command("storage")

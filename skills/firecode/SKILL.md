@@ -82,6 +82,9 @@ firecode network main
 - `firecode storage <page> --clear` — clear all storage (add --session to clear only sessionStorage)
 - `firecode pdf <page> [path]` — export page as PDF (headless mode only)
 
+### Auth
+- `firecode auth <page> <domain>` — import cookies from the user's real Firefox into firecode (prompts the user for approval). Use this when a site needs login and you can't sign in directly. The user must approve in their terminal — you can't auto-confirm. Example: `firecode auth main github.com`
+
 ### Recording
 - `firecode record start <page>` — start recording actions
 - `firecode record stop <page>` — stop recording and show captured steps

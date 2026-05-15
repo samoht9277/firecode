@@ -115,6 +115,18 @@ export function createApp(pageManager: PageManager, authToken: string) {
     },
   );
 
+  app.post<{ Params: { name: string }; Body: { cookies: any[] } }>(
+    "/pages/:name/cookies",
+    async (req) => {
+      const page = pageManager.getPage(req.params.name);
+      await page.context().addCookies(req.body.cookies);
+      return {
+        ok: true,
+        message: `Imported ${req.body.cookies.length} cookies`,
+      };
+    },
+  );
+
   app.get<{ Params: { name: string }; Querystring: { type?: string } }>(
     "/pages/:name/storage",
     async (req) => {
