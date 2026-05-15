@@ -85,6 +85,14 @@ function mapSameSite(n: number): "Strict" | "Lax" | "None" {
   return "None";
 }
 
+// Firefox versions store expiry in either seconds or milliseconds.
+// Playwright wants seconds. Anything > 1e10 must be milliseconds
+// (1e10 seconds = year 2286).
+function normalizeExpiry(raw: number): number {
+  if (!raw || raw <= 0) return -1;
+  return raw > 1e10 ? Math.floor(raw / 1000) : Math.floor(raw);
+}
+
 async function askApproval(
   domain: string,
   count: number,
@@ -165,7 +173,7 @@ export async function authCommand(
       value: c.value,
       domain: c.host,
       path: c.path,
-      expires: c.expiry > 0 ? c.expiry : -1,
+      expires: normalizeExpiry(c.expiry),
       httpOnly: !!c.isHttpOnly,
       secure: !!c.isSecure,
       sameSite: mapSameSite(c.sameSite || 0),
