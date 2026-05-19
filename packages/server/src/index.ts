@@ -3,13 +3,18 @@ import { mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { createApp } from "./api.js";
 import { PageManager } from "./pages.js";
-import { SERVER_STATE_PATH, FIRECODE_DIR } from "./types.js";
+import { FIRECODE_DIR, getInstanceName, getServerStatePath } from "./types.js";
 import type { ServerState } from "./types.js";
 
 export { PageManager } from "./pages.js";
 export { getSnapshot, resolveRef } from "./snapshot.js";
 export { createApp } from "./api.js";
-export { SERVER_STATE_PATH, FIRECODE_DIR } from "./types.js";
+export {
+  SERVER_STATE_PATH,
+  FIRECODE_DIR,
+  getInstanceName,
+  getServerStatePath,
+} from "./types.js";
 export type {
   ServerState,
   PageInfo,
@@ -31,23 +36,27 @@ export async function startServer(
 ): Promise<void> {
   const headless = options.headless ?? false;
   const port = options.port ?? 0;
+  const instance = getInstanceName();
+  const statePath = getServerStatePath(instance);
+  const label = instance === "default" ? "" : ` [${instance}]`;
 
   // Clean up stale state file from a crashed/killed server
   try {
-    const raw = await readFile(SERVER_STATE_PATH, "utf-8");
+    const raw = await readFile(statePath, "utf-8");
     const old: ServerState = JSON.parse(raw);
     try {
       process.kill(old.pid, 0); // check if process exists
-      console.error(`Firecode server already running (PID ${old.pid}). Run: firecode stop`);
+      console.error(
+        `Firecode${label} server already running (PID ${old.pid}). Run: firecode stop`,
+      );
       process.exit(1);
     } catch {
-      // Process doesn't exist, stale file — clean it up
-      await rm(SERVER_STATE_PATH);
+      await rm(statePath);
       console.log("Cleaned up stale state file from previous session.");
     }
   } catch {}
 
-  console.log(`Launching Firefox (${headless ? "headless" : "headed"})...`);
+  console.log(`Launching Firefox${label} (${headless ? "headless" : "headed"})...`);
 
   const browser = await firefox.launch({
     headless,
@@ -57,8 +66,6 @@ export async function startServer(
     },
   });
 
-  // Don't create a context here — PageManager creates it lazily on first page,
-  // so no blank window appears until you actually navigate somewhere.
   const pageManager = new PageManager();
   pageManager.setBrowser(browser);
 
@@ -74,9 +81,9 @@ export async function startServer(
     pid: process.pid,
     authToken,
   };
-  await writeFile(SERVER_STATE_PATH, JSON.stringify(state, null, 2));
-  console.log(`State written to ${SERVER_STATE_PATH}`);
-  console.log("Firecode server running. Press Ctrl+C to stop.");
+  await writeFile(statePath, JSON.stringify(state, null, 2));
+  console.log(`State written to ${statePath}`);
+  console.log(`Firecode${label} server running. Press Ctrl+C to stop.`);
 
   const cleanup = async () => {
     console.log("\nShutting down...");
@@ -84,7 +91,7 @@ export async function startServer(
     await app.close();
     await browser.close();
     try {
-      await rm(SERVER_STATE_PATH);
+      await rm(statePath);
     } catch {}
     process.exit(0);
   };

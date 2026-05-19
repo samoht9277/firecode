@@ -477,17 +477,27 @@ export function createApp(pageManager: PageManager, authToken: string) {
             "desktop-hd": { width: 3840, height: 2160 },
           };
           const preset = presets[args[0]];
+          let width: number, height: number, label: string;
           if (preset) {
-            await page.setViewportSize(preset);
-            return { ok: true, message: `Viewport set to ${args[0]} (${preset.width}x${preset.height})` };
-          }
-          const width = parseInt(args[0], 10);
-          const height = parseInt(args[1], 10);
-          if (isNaN(width) || isNaN(height)) {
-            throw new Error("viewport requires width height or a preset (mobile, tablet, desktop, desktop-hd)");
+            width = preset.width;
+            height = preset.height;
+            label = `${args[0]} (${width}x${height})`;
+          } else {
+            width = parseInt(args[0], 10);
+            height = parseInt(args[1], 10);
+            if (isNaN(width) || isNaN(height)) {
+              throw new Error("viewport requires width height or a preset (mobile, tablet, desktop, desktop-hd)");
+            }
+            label = `${width}x${height}`;
           }
           await page.setViewportSize({ width, height });
-          return { ok: true, message: `Viewport set to ${width}x${height}` };
+          // setViewportSize only updates content metadata in headed Firefox.
+          // Use window.resizeTo() to actually resize the OS window.
+          await page.evaluate(
+            ({ w, h }) => window.resizeTo(w, h),
+            { w: width, h: height },
+          ).catch(() => {});
+          return { ok: true, message: `Viewport set to ${label}` };
         }
         case "click-text": {
           const text = args[0];

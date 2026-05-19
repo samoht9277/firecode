@@ -1,7 +1,15 @@
 import { readFile, rm } from "node:fs/promises";
 import { execFile } from "node:child_process";
 
-const SERVER_STATE_PATH = `${process.env.HOME}/.firecode/server.json`;
+function getInstanceName(): string {
+  return process.env.FIRECODE_INSTANCE || "default";
+}
+
+function getStatePath(): string {
+  const name = getInstanceName();
+  const filename = name === "default" ? "server.json" : `server-${name}.json`;
+  return `${process.env.HOME}/.firecode/${filename}`;
+}
 
 interface ServerState {
   httpPort: number;
@@ -21,14 +29,14 @@ export class FirecodeClient {
   static async connect(): Promise<FirecodeClient> {
     let raw: string | undefined;
     try {
-      raw = await readFile(SERVER_STATE_PATH, "utf-8");
+      raw = await readFile(getStatePath(), "utf-8");
 
       // Check if PID is alive — if not, clean up stale state file
       const state: ServerState = JSON.parse(raw);
       try {
         process.kill(state.pid, 0);
       } catch {
-        await rm(SERVER_STATE_PATH).catch(() => {});
+        await rm(getStatePath()).catch(() => {});
         raw = undefined;
       }
     } catch {}
@@ -44,7 +52,7 @@ export class FirecodeClient {
       for (let i = 0; i < 20; i++) {
         await new Promise((r) => setTimeout(r, 500));
         try {
-          raw = await readFile(SERVER_STATE_PATH, "utf-8");
+          raw = await readFile(getStatePath(), "utf-8");
           break;
         } catch {}
       }

@@ -1,11 +1,16 @@
 import { readFile, rm } from "node:fs/promises";
 
-const SERVER_STATE_PATH = `${process.env.HOME}/.firecode/server.json`;
+function getStatePath(): string {
+  const name = process.env.FIRECODE_INSTANCE || "default";
+  const filename = name === "default" ? "server.json" : `server-${name}.json`;
+  return `${process.env.HOME}/.firecode/${filename}`;
+}
 
 export async function stopCommand(): Promise<void> {
+  const statePath = getStatePath();
   let raw: string;
   try {
-    raw = await readFile(SERVER_STATE_PATH, "utf-8");
+    raw = await readFile(statePath, "utf-8");
   } catch {
     console.log("Firecode server is not running.");
     return;
@@ -31,6 +36,6 @@ export async function stopCommand(): Promise<void> {
     console.log(`Force killed firecode server (PID ${state.pid}).`);
   } catch {}
 
-  await rm(SERVER_STATE_PATH).catch(() => {});
+  await rm(statePath).catch(() => {});
   console.log("Cleaned up state file.");
 }

@@ -11,6 +11,18 @@ Run commands with `firecode <command>` (shell alias is already configured).
 
 If the server isn't running, it auto-starts in headless mode when you run any command.
 
+## Running Multiple Instances
+
+If you need to coexist with another agent already using firecode (same machine), set `FIRECODE_INSTANCE=<name>` for every command to get an isolated server with its own Firefox process, port, and state file. Example:
+
+```bash
+FIRECODE_INSTANCE=alpha firecode browse main navigate "http://localhost:3000"
+FIRECODE_INSTANCE=alpha firecode snapshot main
+FIRECODE_INSTANCE=alpha firecode stop
+```
+
+Default (no env var) keeps the legacy single-instance behavior. Each instance is fully isolated, including auth tokens.
+
 ## When to Use
 
 - You just made changes to a web app and want to verify they work

@@ -60,5 +60,18 @@ export interface NetworkEntry {
   timestamp: number;
 }
 
-export const SERVER_STATE_PATH = `${process.env.HOME}/.firecode/server.json`;
 export const FIRECODE_DIR = `${process.env.HOME}/.firecode`;
+
+export function getInstanceName(): string {
+  return process.env.FIRECODE_INSTANCE || "default";
+}
+
+export function getServerStatePath(instance?: string): string {
+  const name = instance ?? getInstanceName();
+  const filename = name === "default" ? "server.json" : `server-${name}.json`;
+  return `${FIRECODE_DIR}/${filename}`;
+}
+
+// Backwards-compatible: resolves to the current instance's state path.
+// Prefer getServerStatePath() in new code.
+export const SERVER_STATE_PATH = getServerStatePath();
