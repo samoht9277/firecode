@@ -11,17 +11,21 @@ Run commands with `firecode <command>` (shell alias is already configured).
 
 If the server isn't running, it auto-starts in headless mode when you run any command.
 
-## Running Multiple Instances
+## Always set FIRECODE_INSTANCE
 
-If you need to coexist with another agent already using firecode (same machine), set `FIRECODE_INSTANCE=<name>` for every command to get an isolated server with its own Firefox process, port, and state file. Example:
+Set `FIRECODE_INSTANCE=<unique>` on every firecode command to avoid collisions with another Claude session that may also be using firecode.
+
+**Convention:** use the project folder name. Get it once at the start of your session with `basename "$PWD"`, then prefix it on every command. Example: if the user is in `/Users/foo/projects/myapp`, your commands look like:
 
 ```bash
-FIRECODE_INSTANCE=alpha firecode browse main navigate "http://localhost:3000"
-FIRECODE_INSTANCE=alpha firecode snapshot main
-FIRECODE_INSTANCE=alpha firecode stop
+FIRECODE_INSTANCE=myapp firecode browse main navigate "http://localhost:3000"
+FIRECODE_INSTANCE=myapp firecode snapshot main
+FIRECODE_INSTANCE=myapp firecode stop
 ```
 
-Default (no env var) keeps the legacy single-instance behavior. Each instance is fully isolated, including auth tokens.
+If two agents end up in the same project folder, append something distinctive (a task name, a short random suffix) so each agent has its own.
+
+Each instance runs its own Firefox process with its own port, auth token, browser context, and pages. They still share the user's machine (screen, `/tmp`, real Firefox profile during `auth`), so don't expect total isolation, just no state collisions between instances.
 
 ## When to Use
 
@@ -35,23 +39,28 @@ Default (no env var) keeps the legacy single-instance behavior. Each instance is
 ## Quick Start
 
 ```bash
+# Set your instance name once (use the project folder name)
+INSTANCE=$(basename "$PWD")
+
 # Navigate to the app (auto-starts server if needed)
-firecode browse main navigate "http://localhost:3000"
+FIRECODE_INSTANCE=$INSTANCE firecode browse main navigate "http://localhost:3000"
 
 # See what's on the page
-firecode snapshot main
+FIRECODE_INSTANCE=$INSTANCE firecode snapshot main
 
 # Interact with elements using ref IDs from the snapshot
-firecode browse main click e4
-firecode browse main fill e5 "hello@example.com"
+FIRECODE_INSTANCE=$INSTANCE firecode browse main click e4
+FIRECODE_INSTANCE=$INSTANCE firecode browse main fill e5 "hello@example.com"
 
 # Verify the result
-firecode snapshot main
+FIRECODE_INSTANCE=$INSTANCE firecode snapshot main
 
 # Check for errors
-firecode console main
-firecode network main
+FIRECODE_INSTANCE=$INSTANCE firecode console main
+FIRECODE_INSTANCE=$INSTANCE firecode network main
 ```
+
+(Examples below omit the prefix for brevity — but you should always include it.)
 
 ## Commands
 
