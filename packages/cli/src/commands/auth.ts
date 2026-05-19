@@ -179,10 +179,13 @@ export async function authCommand(
       sameSite: mapSameSite(c.sameSite || 0),
     }));
 
+    const ttlSeconds = parseInt(process.env.FIRECODE_AUTH_TTL ?? "900", 10);
+
     const client = await FirecodeClient.connect();
     await client.post("/pages", { name: pageName });
     const result = await client.post(`/pages/${pageName}/cookies`, {
       cookies,
+      expireAfter: ttlSeconds,
     });
     console.log(result.message);
   } catch (err: any) {

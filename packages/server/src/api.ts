@@ -115,17 +115,29 @@ export function createApp(pageManager: PageManager, authToken: string) {
     },
   );
 
-  app.post<{ Params: { name: string }; Body: { cookies: any[] } }>(
-    "/pages/:name/cookies",
-    async (req) => {
-      const page = pageManager.getPage(req.params.name);
-      await page.context().addCookies(req.body.cookies);
-      return {
-        ok: true,
-        message: `Imported ${req.body.cookies.length} cookies`,
-      };
-    },
-  );
+  app.post<{
+    Params: { name: string };
+    Body: { cookies: any[]; expireAfter?: number };
+  }>("/pages/:name/cookies", async (req) => {
+    const page = pageManager.getPage(req.params.name);
+    await page.context().addCookies(req.body.cookies);
+
+    const expireAfter = req.body.expireAfter;
+    let expiryNote = "";
+    if (expireAfter && expireAfter > 0) {
+      const domains = req.body.cookies
+        .map((c: any) => (c.domain ?? "").replace(/^\./, ""))
+        .filter(Boolean);
+      pageManager.trackAuthImport(domains, expireAfter);
+      const mins = Math.round(expireAfter / 60);
+      expiryNote = ` (auto-expire in ${mins}m)`;
+    }
+
+    return {
+      ok: true,
+      message: `Imported ${req.body.cookies.length} cookies${expiryNote}`,
+    };
+  });
 
   app.get<{ Params: { name: string }; Querystring: { type?: string } }>(
     "/pages/:name/storage",

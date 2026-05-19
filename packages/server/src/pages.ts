@@ -16,13 +16,59 @@ interface PageEntry {
   isRecording: boolean;
 }
 
+interface AuthImport {
+  domains: Set<string>;
+  expiresAt: number;
+}
+
 export class PageManager {
   private pages = new Map<string, PageEntry>();
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
+  private authImports: AuthImport[] = [];
+  private sweepTimer: NodeJS.Timeout | null = null;
 
   setBrowser(browser: Browser): void {
     this.browser = browser;
+    if (!this.sweepTimer) {
+      this.sweepTimer = setInterval(() => {
+        this.sweepExpiredAuth().catch(() => {});
+      }, 30_000);
+      this.sweepTimer.unref?.();
+    }
+  }
+
+  trackAuthImport(domains: string[], ttlSeconds: number): void {
+    if (!domains.length || ttlSeconds <= 0) return;
+    this.authImports.push({
+      domains: new Set(domains),
+      expiresAt: Date.now() + ttlSeconds * 1000,
+    });
+  }
+
+  private async sweepExpiredAuth(): Promise<void> {
+    if (!this.context) return;
+    const now = Date.now();
+    const expired: string[] = [];
+    const remaining: AuthImport[] = [];
+    for (const imp of this.authImports) {
+      if (imp.expiresAt <= now) {
+        for (const d of imp.domains) expired.push(d);
+      } else {
+        remaining.push(imp);
+      }
+    }
+    if (!expired.length) return;
+    this.authImports = remaining;
+    const unique = [...new Set(expired)];
+    for (const domain of unique) {
+      try {
+        await this.context.clearCookies({ domain });
+      } catch {}
+    }
+    console.error(
+      `[firecode] auth cookies expired for: ${unique.join(", ")}`,
+    );
   }
 
   private async getContext(): Promise<BrowserContext> {
@@ -180,6 +226,10 @@ export class PageManager {
   }
 
   async closeAll(): Promise<void> {
+    if (this.sweepTimer) {
+      clearInterval(this.sweepTimer);
+      this.sweepTimer = null;
+    }
     for (const name of this.pages.keys()) {
       await this.closePage(name);
     }

@@ -105,7 +105,7 @@ FIRECODE_INSTANCE=$INSTANCE firecode network main
 - `firecode pdf <page> [path]` — export page as PDF (headless mode only)
 
 ### Auth
-- `firecode auth <page> <domain>` — import cookies from the user's real Firefox into firecode (prompts the user for approval). Use this when a site needs login and you can't sign in directly. The user must approve in their terminal — you can't auto-confirm. Example: `firecode auth main github.com`
+- `firecode auth <page> <domain>` — import cookies from the user's real Firefox into firecode (prompts the user for approval). Use this when a site needs login and you can't sign in directly. The user must approve via a native OS dialog — you can't auto-confirm. Example: `firecode auth main github.com`. Imported cookies auto-expire after 15 minutes (configurable via `FIRECODE_AUTH_TTL` env var on the server). After expiry, the user has to re-approve.
 
 ### Recording
 - `firecode record start <page>` — start recording actions
