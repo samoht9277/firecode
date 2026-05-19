@@ -119,9 +119,12 @@ const cookies = program
 
 cookies
   .command("show", { isDefault: true })
-  .description("Show cookies (default)")
+  .description("Show cookies (values masked by default)")
   .argument("<page>", "Page name")
-  .action(cookiesCommand);
+  .option("--unsafe-show-values", "Print raw cookie values (security risk)")
+  .action((page, options) => {
+    cookiesCommand(page, options);
+  });
 
 cookies
   .command("set")

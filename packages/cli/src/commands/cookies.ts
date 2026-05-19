@@ -1,6 +1,15 @@
 import { FirecodeClient } from "../client.js";
 
-export async function cookiesCommand(pageName: string): Promise<void> {
+function maskValue(value: string): string {
+  if (!value) return "(empty)";
+  if (value.length <= 4) return `(${value.length} chars)`;
+  return `${value.slice(0, 4)}…(${value.length} chars)`;
+}
+
+export async function cookiesCommand(
+  pageName: string,
+  options: { unsafeShowValues?: boolean } = {},
+): Promise<void> {
   try {
     const client = await FirecodeClient.connect();
     const result = await client.get(`/pages/${pageName}/cookies`);
@@ -11,7 +20,25 @@ export async function cookiesCommand(pageName: string): Promise<void> {
     }
 
     for (const cookie of result.cookies) {
-      console.log(`${cookie.name}=${cookie.value} (${cookie.domain}, ${cookie.path})`);
+      const value = options.unsafeShowValues
+        ? cookie.value
+        : maskValue(cookie.value);
+      const flags = [
+        cookie.httpOnly ? "HttpOnly" : "",
+        cookie.secure ? "Secure" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const flagsStr = flags ? ` [${flags}]` : "";
+      console.log(
+        `${cookie.name}=${value} (${cookie.domain}, ${cookie.path})${flagsStr}`,
+      );
+    }
+
+    if (!options.unsafeShowValues) {
+      console.log(
+        "\n(values masked. Pass --unsafe-show-values to print raw values, never paste them anywhere.)",
+      );
     }
   } catch (err: any) {
     console.error(`Error: ${err.message}`);

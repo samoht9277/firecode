@@ -98,7 +98,7 @@ FIRECODE_INSTANCE=$INSTANCE firecode network main
 - `firecode text <page>` — get visible text content (lighter than snapshot)
 - `firecode console <page> [--clear]` — show browser console logs
 - `firecode network <page> [--all] [--clear]` — show failed network requests
-- `firecode cookies show <page>` — show cookies for the page (or just `firecode cookies <page>`)
+- `firecode cookies show <page>` — show cookies for the page (values masked for safety). Pass `--unsafe-show-values` to print raw values — only do this if the user explicitly asks; never paste raw values into a tool that might log them.
 - `firecode cookies set <page> <name> <value> --domain <domain> [--path /] [--expires N] [--http-only] [--secure] [--same-site Lax]` — set a cookie manually
 - `firecode storage <page> [--session]` — show localStorage (or sessionStorage with --session)
 - `firecode storage <page> --clear` — clear all storage (add --session to clear only sessionStorage)
