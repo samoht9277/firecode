@@ -69,16 +69,18 @@ FIRECODE_INSTANCE=$INSTANCE firecode network main
 - `firecode stop` — shut down Firefox and the server
 - `firecode status` — check if server is running, list open pages
 
+Most browse + snapshot commands accept `--frame <css-selector>` to operate inside an iframe (see "Working with iframes" below).
+
 ### Browsing
 - `firecode browse <page> navigate <url>` — go to a URL (creates page if needed)
-- `firecode browse <page> click <ref> [--force]` — click an element
-- `firecode browse <page> fill <ref> <value> [--force]` — clear and fill a text input
-- `firecode browse <page> type <ref> <text>` — type text character by character
-- `firecode browse <page> select <ref> <value> [--force]` — select a dropdown option
-- `firecode browse <page> hover <ref> [--force]` — hover over an element
+- `firecode browse <page> click <ref> [--force] [--wait-idle] [--frame <css>]` — click an element (`--wait-idle` waits for network idle after; falls back to a direct DOM click if actionability times out)
+- `firecode browse <page> fill <ref> <value> [--force] [--frame <css>]` — clear and fill a text input
+- `firecode browse <page> type <ref> <text> [--frame <css>]` — type text character by character
+- `firecode browse <page> select <ref> <value> [--force] [--frame <css>]` — select a dropdown option
+- `firecode browse <page> hover <ref> [--force] [--frame <css>]` — hover over an element
 - `firecode browse <page> wait <ms>` — wait for a duration
 - `firecode browse <page> evaluate "<js>"` — run JavaScript and get result. Supports `return` for multi-statement code (auto-wrapped in async IIFE), e.g. `evaluate "let x = 1; return x + 2"`.
-- `firecode browse <page> scroll down|up|<ref>` — scroll page or to an element
+- `firecode browse <page> scroll down|up|<ref> [<n>] [--frame <css>]` — scroll page (optionally n viewports) or to an element
 - `firecode browse <page> wait-for "<text>"` — wait for text to appear
 - `firecode browse <page> wait-for --selector "<css>" [--timeout ms]` — wait for selector
 - `firecode browse <page> reload` — refresh the page
@@ -86,13 +88,13 @@ FIRECODE_INSTANCE=$INSTANCE firecode network main
 - `firecode browse <page> forward` — go forward in history
 - `firecode browse <page> keyboard <key>` — press a key (e.g. ArrowRight, Enter, Space, Tab, Escape)
 - `firecode browse <page> viewport mobile|tablet|desktop|<width> <height>` — set viewport size (presets: mobile=375x812, tablet=768x1024, desktop=1920x1080, desktop-hd=3840x2160)
-- `firecode browse <page> click-text "<text>" [--soft]` — click by visible text (--soft won't fail if not found)
-- `firecode browse <page> find-text "<text>"` — find text on page and show element info (non-destructive)
-- `firecode browse <page> assert-text "<text>"` — check if text exists on page (fails with error if not found)
+- `firecode browse <page> click-text "<text>" [--soft] [--frame <css>]` — click by visible text (--soft won't fail if not found)
+- `firecode browse <page> find-text "<text>" [--frame <css>]` — find text on page and show element info (non-destructive)
+- `firecode browse <page> assert-text "<text>" [--frame <css>]` — check if text exists on page (fails with error if not found)
 - `firecode browse <page> wait-idle` — wait for network to be idle (no pending requests)
 
 ### Observing
-- `firecode snapshot <page> [--interactive]` — get ARIA accessibility tree with ref IDs (--interactive for only buttons/inputs/links)
+- `firecode snapshot <page> [--interactive] [--frame <css>]` — get ARIA accessibility tree with ref IDs (--interactive for only buttons/inputs/links; --frame to snapshot inside an iframe)
 - `firecode screenshot <page> [path]` — capture PNG screenshot
 - `firecode screenshot <page> [path] --diff <baseline>` — pixel-level comparison against baseline, outputs diff image
 - `firecode text <page>` — get visible text content (lighter than snapshot)
@@ -139,6 +141,27 @@ Named elements: `firecode browse main click e6` (clicks "Save")
 Unnamed elements: `firecode browse main click e7` (clicks the unnamed button)
 
 **Important:** Refs are content-hashed (e.g. `e17e5`, `e340a`) and stable across snapshots — same element keeps the same ref. But refs are still per-snapshot session: you need at least one snapshot before refs can resolve, and if an element is removed/replaced the ref becomes invalid.
+
+## Working with iframes
+
+If a page uses iframes or an old-school frameset (common on routers, embedded widgets, legacy admin UIs), the top-level snapshot won't show the iframe's contents — `click`/`click-text`/`text` against those elements silently do nothing. Use `--frame <css-selector>` to operate inside the frame.
+
+```bash
+# 1. Find the frame's selector
+firecode browse main evaluate "return [...document.querySelectorAll('frame,iframe')].map(f => ({id: f.id, name: f.name, src: f.src}))"
+# → [{ id: "frameContent", name: "", src: "..." }]
+
+# 2. Snapshot inside it (refs now come from the frame)
+firecode snapshot main --frame "iframe#frameContent"
+
+# 3. Interact — the ref map remembers the frame, so you don't have to repeat --frame
+firecode browse main click e1a2b
+# (but passing --frame again is harmless and explicit)
+```
+
+Target by `id`, `name`, or any CSS selector that matches the `<frame>`/`<iframe>` element — **not** by index (`window.frames[0]` won't work as `0`). Classic framesets: `--frame "frame[name=main]"`. Nested frames only go one level deep currently.
+
+**Polling/refresh frames:** some legacy UIs have a sibling frame that reloads every few seconds and can reset the content frame mid-task. `--wait-idle` won't help (the polling frame never lets the network settle). The click fallback (direct DOM click on actionability timeout) helps, but if clicks keep getting reset, re-navigate the content frame directly via `evaluate` as a last resort.
 
 ## Debugging Workflow
 
