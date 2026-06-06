@@ -582,6 +582,7 @@ export function createApp(pageManager: PageManager, authToken: string) {
           const text = args[0];
           if (!text) throw new Error("click-text requires text to click");
           const soft = hasFlag(args, "--soft");
+          const waitNav = hasFlag(args, "--wait-nav");
           const root = frame ? page.frameLocator(frame) : page;
 
           // Try strategies in order: getByText → button by name → link by name → menuitem by name → closest clickable ancestor
@@ -592,18 +593,43 @@ export function createApp(pageManager: PageManager, authToken: string) {
             () => root.getByRole("menuitem", { name: text, exact: false }).first(),
           ];
 
-          let lastError: any;
-          for (const strategy of strategies) {
-            try {
-              const locator = strategy();
-              await locator.click({ force, timeout: 2000 });
-              return { ok: true, message: `Clicked text "${text}"` };
-            } catch (err) {
-              lastError = err;
+          const afterClick = async (): Promise<string> => {
+            if (waitNav) {
+              const targetFrame = await resolveFrame(page, frame);
+              await targetFrame
+                .waitForLoadState("load", { timeout: 5000 })
+                .catch(() => {});
+              return " (nav)";
+            }
+            if (waitIdle) {
+              await page
+                .waitForLoadState("networkidle", { timeout: 10000 })
+                .catch(() => {});
+              return " (idle)";
+            }
+            return "";
+          };
+
+          // --wait-nav retries the whole strategy sweep if a frame reload eats the click
+          const maxAttempts = waitNav ? 3 : 1;
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            for (const strategy of strategies) {
+              try {
+                const locator = strategy();
+                await locator.click({ force, timeout: 2000 });
+                const tag = await afterClick();
+                const retried = attempt > 1 ? ` after ${attempt} attempts` : "";
+                return { ok: true, message: `Clicked text "${text}"${tag}${retried}` };
+              } catch {
+                // try next strategy
+              }
+            }
+            if (waitNav && attempt < maxAttempts) {
+              await page.waitForTimeout(400);
             }
           }
 
-          // Last resort: find text via getByText and click closest button/link/role ancestor
+          // Last resort: find text via getByText and click closest clickable ancestor
           try {
             const textLocator = root.getByText(text, { exact: false }).first();
             await textLocator.evaluate((el: any) => {
@@ -611,7 +637,8 @@ export function createApp(pageManager: PageManager, authToken: string) {
               if (clickable) clickable.click();
               else el.click?.();
             });
-            return { ok: true, message: `Clicked text "${text}" (via ancestor)` };
+            const tag = await afterClick();
+            return { ok: true, message: `Clicked text "${text}" (via ancestor)${tag}` };
           } catch {}
 
           if (soft) {
