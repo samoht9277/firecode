@@ -63,6 +63,7 @@ program
   .option("--force", "Force action past overlays")
   .option("--soft", "Don't fail if element not found (for click-text)")
   .option("--wait-idle", "Wait for network idle after click")
+  .option("--wait-nav", "Wait for the click's navigation + retry if a frame reload detaches the element")
   .option("--frame <selector>", "Operate inside an iframe (CSS selector)")
   .action((page, action, args, options) => {
     browseCommand(page, action, args, options);

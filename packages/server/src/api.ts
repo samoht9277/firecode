@@ -3,9 +3,37 @@ import { dirname, resolve } from "node:path";
 import Fastify from "fastify";
 import pixelmatch from "pixelmatch";
 import { PNG } from "pngjs";
+import type { Frame, Page } from "playwright";
 import { PageManager } from "./pages.js";
 import { getSnapshot, resolveRef } from "./snapshot.js";
 import type { ActionRequest } from "./types.js";
+
+// Resolve the Frame object behind a --frame CSS selector so we can wait on its
+// own load events (not a sibling polling frame's). Returns the main frame if no
+// selector or if the iframe can't be resolved.
+async function resolveFrame(
+  page: Page,
+  frameSelector?: string,
+): Promise<Frame> {
+  if (!frameSelector) return page.mainFrame();
+  try {
+    const handle = await page.$(frameSelector);
+    const contentFrame = handle ? await handle.contentFrame() : null;
+    return contentFrame ?? page.mainFrame();
+  } catch {
+    return page.mainFrame();
+  }
+}
+
+function isRetryableError(message: string): boolean {
+  return (
+    /Timeout/i.test(message) ||
+    /detached/i.test(message) ||
+    /not attached/i.test(message) ||
+    /element is not/i.test(message) ||
+    /navigation/i.test(message)
+  );
+}
 
 const ALLOWED_DIRS = ["/tmp", process.env.HOME + "/.firecode", process.cwd()];
 
@@ -365,25 +393,64 @@ export function createApp(pageManager: PageManager, authToken: string) {
           return { ok: true, message: `Navigated to ${url}` };
         }
         case "click": {
-          const locator = resolveRef(page, refMap, args[0], frame);
+          const waitNav = hasFlag(args, "--wait-nav");
+          // --wait-nav retries the click when a sibling frame reload detaches
+          // the element mid-action (common on legacy frameset/router UIs).
+          const maxAttempts = waitNav ? 3 : 1;
           let fallback = false;
-          try {
-            await locator.click({ force, timeout: 3000 });
-          } catch (err: any) {
-            if (err.message?.includes("Timeout")) {
-              // Element exists but Playwright's actionability check timed out.
-              // Just fire the DOM click directly.
-              await locator.evaluate((el: any) => el.click?.());
-              fallback = true;
-            } else {
+          let lastErr: any;
+
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+              const locator = resolveRef(page, refMap, args[0], frame);
+              const targetFrame = waitNav
+                ? await resolveFrame(page, frame)
+                : null;
+
+              try {
+                await locator.click({ force, timeout: 3000 });
+              } catch (err: any) {
+                if (err.message?.includes("Timeout")) {
+                  // Actionability check timed out — fire the DOM click directly.
+                  await locator.evaluate((el: any) => el.click?.());
+                  fallback = true;
+                } else {
+                  throw err;
+                }
+              }
+
+              if (waitNav && targetFrame) {
+                // Wait for the click's navigation to land in THIS frame
+                // (a sibling polling frame's reloads won't trigger this).
+                await targetFrame
+                  .waitForLoadState("load", { timeout: 5000 })
+                  .catch(() => {});
+              }
+              if (waitIdle) {
+                await page
+                  .waitForLoadState("networkidle", { timeout: 10000 })
+                  .catch(() => {});
+              }
+
+              const tag = fallback
+                ? " (forced)"
+                : waitNav
+                  ? " (nav)"
+                  : waitIdle
+                    ? " (idle)"
+                    : "";
+              const retried = attempt > 1 ? ` after ${attempt} attempts` : "";
+              return { ok: true, message: `Clicked ${args[0]}${tag}${retried}` };
+            } catch (err: any) {
+              lastErr = err;
+              if (attempt < maxAttempts && isRetryableError(err.message ?? "")) {
+                await page.waitForTimeout(400);
+                continue;
+              }
               throw err;
             }
           }
-          if (waitIdle) {
-            await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
-          }
-          const tag = fallback ? " (forced)" : waitIdle ? " (idle)" : "";
-          return { ok: true, message: `Clicked ${args[0]}${tag}` };
+          throw lastErr;
         }
         case "fill": {
           const locator = resolveRef(page, refMap, args[0], frame);

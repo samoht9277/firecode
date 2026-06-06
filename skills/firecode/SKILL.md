@@ -73,7 +73,7 @@ Most browse + snapshot commands accept `--frame <css-selector>` to operate insid
 
 ### Browsing
 - `firecode browse <page> navigate <url>` — go to a URL (creates page if needed)
-- `firecode browse <page> click <ref> [--force] [--wait-idle] [--frame <css>]` — click an element (`--wait-idle` waits for network idle after; falls back to a direct DOM click if actionability times out)
+- `firecode browse <page> click <ref> [--force] [--wait-idle] [--wait-nav] [--frame <css>]` — click an element (`--wait-idle` waits for network idle after; `--wait-nav` waits for the click's navigation and retries up to 3x if a sibling frame reload detaches the element — use on legacy frameset/router UIs; falls back to a direct DOM click if actionability times out)
 - `firecode browse <page> fill <ref> <value> [--force] [--frame <css>]` — clear and fill a text input
 - `firecode browse <page> type <ref> <text> [--frame <css>]` — type text character by character
 - `firecode browse <page> select <ref> <value> [--force] [--frame <css>]` — select a dropdown option
@@ -161,7 +161,7 @@ firecode browse main click e1a2b
 
 Target by `id`, `name`, or any CSS selector that matches the `<frame>`/`<iframe>` element — **not** by index (`window.frames[0]` won't work as `0`). Classic framesets: `--frame "frame[name=main]"`. Nested frames only go one level deep currently.
 
-**Polling/refresh frames:** some legacy UIs have a sibling frame that reloads every few seconds and can reset the content frame mid-task. `--wait-idle` won't help (the polling frame never lets the network settle). The click fallback (direct DOM click on actionability timeout) helps, but if clicks keep getting reset, re-navigate the content frame directly via `evaluate` as a last resort.
+**Polling/refresh frames:** some legacy UIs have a sibling frame that reloads every few seconds and can reset the content frame mid-task. `--wait-idle` won't help (the polling frame never lets the network settle). Instead use `click --wait-nav --frame "iframe#content"`: it waits for the click's navigation to land in *that* frame (ignoring the sibling poller) and retries the click up to 3x if a reload detaches the element mid-action. If clicks still keep getting reset, re-navigate the content frame directly via `evaluate` as a last resort.
 
 ## Debugging Workflow
 

@@ -10,7 +10,7 @@ export async function browseCommand(
   pageName: string,
   action: string,
   args: string[],
-  options: { force?: boolean; soft?: boolean; frame?: string; waitIdle?: boolean }
+  options: { force?: boolean; soft?: boolean; frame?: string; waitIdle?: boolean; waitNav?: boolean }
 ): Promise<void> {
   if (!VALID_ACTIONS.includes(action as any)) {
     console.error(
@@ -30,6 +30,7 @@ export async function browseCommand(
     if (options.force) fullArgs.push("--force");
     if (options.soft) fullArgs.push("--soft");
     if (options.waitIdle) fullArgs.push("--wait-idle");
+    if (options.waitNav) fullArgs.push("--wait-nav");
     if (options.frame) {
       fullArgs.push("--frame", options.frame);
     }
