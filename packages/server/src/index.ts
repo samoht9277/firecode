@@ -1,5 +1,7 @@
 import { firefox } from "playwright";
 import { mkdir, writeFile, rm, readFile } from "node:fs/promises";
+import { statSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { createApp } from "./api.js";
 import { PageManager } from "./pages.js";
@@ -75,11 +77,21 @@ export async function startServer(
   const httpPort = parseInt(new URL(address).port, 10);
   console.log(`HTTP API listening on ${address}`);
 
+  // Record this bundle's path + mtime so the CLI can detect a stale server
+  // (i.e. the code was rebuilt after this server started).
+  const buildPath = fileURLToPath(import.meta.url);
+  let buildMtime = 0;
+  try {
+    buildMtime = statSync(buildPath).mtimeMs;
+  } catch {}
+
   await mkdir(FIRECODE_DIR, { recursive: true });
   const state: ServerState = {
     httpPort,
     pid: process.pid,
     authToken,
+    buildPath,
+    buildMtime,
   };
   await writeFile(statePath, JSON.stringify(state, null, 2));
   console.log(`State written to ${statePath}`);

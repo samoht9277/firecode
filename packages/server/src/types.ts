@@ -2,6 +2,8 @@ export interface ServerState {
   httpPort: number;
   pid: number;
   authToken: string;
+  buildPath: string;
+  buildMtime: number;
 }
 
 export interface PageInfo {

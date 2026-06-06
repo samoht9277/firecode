@@ -1,4 +1,5 @@
 import { readFile, rm } from "node:fs/promises";
+import { statSync } from "node:fs";
 import { execFile } from "node:child_process";
 
 function getInstanceName(): string {
@@ -15,6 +16,23 @@ interface ServerState {
   httpPort: number;
   pid: number;
   authToken: string;
+  buildPath?: string;
+  buildMtime?: number;
+}
+
+// Warn if the server's code was rebuilt after it started (stale in-memory logic).
+function warnIfStale(state: ServerState): void {
+  if (!state.buildPath || !state.buildMtime) return;
+  try {
+    const diskMtime = statSync(state.buildPath).mtimeMs;
+    if (diskMtime > state.buildMtime + 1000) {
+      console.error(
+        "⚠ firecode server is running an OLDER build than what's on disk. " +
+          "New flags/features may be silently ignored. " +
+          "Restart it: firecode stop && firecode start",
+      );
+    }
+  } catch {}
 }
 
 export class FirecodeClient {
@@ -71,6 +89,7 @@ export class FirecodeClient {
       );
     }
 
+    warnIfStale(state);
     return client;
   }
 
