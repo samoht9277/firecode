@@ -7,7 +7,7 @@ description: Browse websites with Firefox to verify your work, debug UI issues, 
 
 You have access to a real Firefox browser via the `firecode` CLI. Use it to verify your work on web apps, debug UI issues, find bugs, and check that things look right, without asking the user to describe what they see.
 
-Run commands with `firecode <command>` (shell alias is already configured).
+Run commands with `firecode <command>` (the installer puts it on your PATH). If `firecode` isn't found, the install step was skipped — see the repo README, or call it directly with `node <repo>/packages/cli/dist/index.js <command>`.
 
 If the server isn't running, it auto-starts in headless mode when you run any command.
 

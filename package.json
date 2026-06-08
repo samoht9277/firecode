@@ -1,8 +1,19 @@
 {
   "name": "firecode",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
+  "description": "Firefox browser automation for AI agents — autonomous verify, debug, and test of web apps.",
+  "license": "MIT",
+  "homepage": "https://github.com/samoht9277/firecode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/samoht9277/firecode.git"
+  },
   "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",

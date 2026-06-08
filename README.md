@@ -26,16 +26,49 @@ Agent: "signup page is working, no errors"
 
 ## Install
 
+**Prerequisites:** [Node.js](https://nodejs.org) 20+ and [pnpm](https://pnpm.io/installation) (`npm install -g pnpm`).
+
+### macOS / Linux
+
 ```bash
 git clone https://github.com/samoht9277/firecode.git
 cd firecode
+./install.sh
+```
+
+### Windows (PowerShell)
+
+```powershell
+git clone https://github.com/samoht9277/firecode.git
+cd firecode
+./install.ps1
+```
+
+The installer builds the CLI, downloads the Playwright Firefox browser, puts `firecode` on your PATH, and installs the Claude Code skill. Pass `--no-skill` (bash) or `-NoSkill` (PowerShell) to skip the skill.
+
+> If `firecode` isn't found after install, open a new terminal (the installer added a directory to your PATH). On macOS/Linux that's `~/.local/bin` — make sure it's on your PATH.
+
+**Using it with Claude Code:** the installer symlinks the skill into `~/.claude/skills/firecode`. In any Claude Code session, just ask Claude to verify something in the browser (e.g. *"open localhost:3000 and check the signup flow works"*) and it'll use firecode automatically.
+
+### Manual install
+
+If you'd rather not run the script:
+
+```bash
 pnpm install
 pnpm build
-npx playwright install firefox
+pnpm --filter @firecode/server exec playwright install firefox
+# put packages/cli/dist/index.js on your PATH as `firecode`, e.g.:
+ln -sf "$(pwd)/packages/cli/dist/index.js" ~/.local/bin/firecode
+# (optional) install the Claude Code skill:
+ln -sfn "$(pwd)/skills/firecode" ~/.claude/skills/firecode
+```
 
-# Add to PATH
-mkdir -p ~/.local/bin
-ln -sf $(pwd)/packages/cli/dist/index.js ~/.local/bin/firecode
+### Uninstall
+
+```bash
+./uninstall.sh      # macOS / Linux
+./uninstall.ps1     # Windows
 ```
 
 ## Quick start
@@ -197,3 +230,18 @@ Single Firefox instance, one OS window with tabs. The CLI talks to the server ov
 ## Why Firefox?
 
 Because we're Firefox loyalists. No Chromium fallback, no browser selection flag.
+
+## Running two agents at once
+
+Each firecode server is isolated by instance. To run two Claude sessions against firecode on the same machine without collisions, set `FIRECODE_INSTANCE` per session:
+
+```bash
+FIRECODE_INSTANCE=projectA firecode browse main navigate "http://localhost:3000"
+FIRECODE_INSTANCE=projectB firecode browse main navigate "http://localhost:4000"
+```
+
+Each instance gets its own Firefox process, port, auth token, and pages.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
